@@ -12,7 +12,7 @@ fn main() {
 
     let result: Vec<&str> = input.split_whitespace().collect();
 
-    if let [cmd, args @ ..] = result.as_slice() {
+    if let [cmd] = result.as_slice() {
         match cmd {
             _ => println!("{}: command not found", cmd),
         }
