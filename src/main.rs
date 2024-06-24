@@ -15,10 +15,8 @@ fn main() -> anyhow::Result<()> {
         match input.parse::<Command>()? {
             Command::Exit(code) => std::process::exit(code),
             Command::Echo(prompt) => prompter.prompt(&prompt)?,
-            Command::Unknown(cmd) => {
-                let not_found = format!("{}: command not found\n", cmd);
-                prompter.prompt(&not_found)?;
-            }
+            Command::Type(prompt) => prompter.prompt(&prompt)?,
+            Command::Unknown(prompt) => prompter.prompt(&prompt)?,
         }
     }
 }
@@ -26,6 +24,7 @@ fn main() -> anyhow::Result<()> {
 enum Command {
     Exit(i32),
     Echo(String),
+    Type(String),
     Unknown(String),
 }
 
@@ -33,6 +32,9 @@ impl FromStr for Command {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> anyhow::Result<Command> {
+        // let path_env = std::env::var("PATH")?;
+        // let exec_path_looker = ExecPathLooker::new(path_env);
+
         let parsed: Vec<&str> = s.split_whitespace().collect();
 
         if let [cmd, args @ ..] = parsed.as_slice() {
@@ -53,13 +55,64 @@ impl FromStr for Command {
 
                     return Ok(Self::Echo(prompt));
                 }
-                _ => return Ok(Self::Unknown(cmd.to_string())),
+                "type" => {
+                    let cmd = args.get(0).ok_or(anyhow!("Invalid arguments"))?;
+                    let built_ins = vec!["exit", "echo", "type"];
+
+                    if built_ins.contains(cmd) {
+                        let prompt = format!("{} is a shell builtin\n", cmd);
+                        return Ok(Self::Type(prompt));
+                    }
+
+                    let prompt = format!("{}: not found\n", cmd);
+                    return Ok(Self::Type(prompt));
+
+                    // if let Some(full_path) = exec_path_looker.look_path(cmd) {
+                    //     let prompt = format!("{}")
+                    // }
+                }
+                _ => {
+                    let prompt = format!("{}: command not found\n", cmd);
+                    return Ok(Self::Unknown(prompt));
+                }
             }
         }
 
         panic!("Could not parse the command")
     }
 }
+
+// struct ExecPathLooker {
+//     env_path: String,
+// }
+
+// impl ExecPathLooker {
+//     fn new(env_path: String) -> Self {
+//         return ExecPathLooker { env_path };
+//     }
+
+//     fn look_path(&self, exec_name: &str) -> Option<String> {
+//         let env_paths = self.env_path.split(":");
+
+//         for env_path in env_paths {
+//             let mut full_path = PathBuf::new();
+
+//             full_path.push(env_path);
+//             full_path.push(exec_name);
+
+//             if full_path.exists() {
+//                 return Some(
+//                     full_path
+//                         .into_os_string()
+//                         .into_string()
+//                         .expect("Failed to convert path"),
+//                 );
+//             }
+//         }
+
+//         return None;
+//     }
+// }
 
 struct Prompter<R: io::BufRead, W: io::Write> {
     reader: R,
