@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
                     Ok(()) => {}
                     Err(e) => match e.kind() {
                         std::io::ErrorKind::NotFound => {
-                            let prompt = format!("cd {}: no such file or directory\n", path);
+                            let prompt = format!("cd: {}: no such file or directory\n", path);
                             prompter.prompt(&prompt)?;
                         }
                         _ => {
