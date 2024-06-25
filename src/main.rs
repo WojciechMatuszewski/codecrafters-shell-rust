@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::{io, path::PathBuf, str::FromStr};
 
 use anyhow::anyhow;
