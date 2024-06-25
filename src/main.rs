@@ -107,7 +107,16 @@ impl FromStr for Command {
                 return Ok(Self::Pwd(format!("{}\n", pwd)));
             }
             "cd" => {
-                let path = args.get(0).ok_or(anyhow!("Invalid arguments"))?.to_string();
+                let home_path =
+                    std::env::home_dir().ok_or(anyhow!("Could not get the home directory"))?;
+                let home_path = home_path.to_str().expect("Could not convert the path");
+
+                let path = args
+                    .get(0)
+                    .ok_or(anyhow!("Invalid arguments"))?
+                    .to_string()
+                    .replace("~", home_path);
+
                 return Ok(Self::Cd(path));
             }
             _ => {
