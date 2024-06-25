@@ -66,7 +66,7 @@ impl FromStr for Command {
             }
             "type" => {
                 let cmd = args.get(0).ok_or(anyhow!("Invalid arguments"))?;
-                let built_ins = vec!["exit", "echo", "type"];
+                let built_ins = vec!["exit", "echo", "type", "pwd"];
 
                 if built_ins.contains(cmd) {
                     let prompt = format!("{} is a shell builtin\n", cmd);
