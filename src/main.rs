@@ -16,6 +16,7 @@ fn main() -> anyhow::Result<()> {
             Command::Exit(code) => std::process::exit(code),
             Command::Echo(prompt) => prompter.prompt(&prompt)?,
             Command::Type(prompt) => prompter.prompt(&prompt)?,
+            Command::Pwd(prompt) => prompter.prompt(&prompt)?,
             Command::Executable(output) => prompter.prompt(&output)?,
             Command::Unknown(prompt) => prompter.prompt(&prompt)?,
         }
@@ -27,6 +28,7 @@ enum Command {
     Exit(i32),
     Echo(String),
     Type(String),
+    Pwd(String),
     Executable(String),
     Unknown(String),
 }
@@ -78,6 +80,15 @@ impl FromStr for Command {
 
                 let prompt = format!("{}: not found\n", cmd);
                 return Ok(Self::Type(prompt));
+            }
+            "pwd" => {
+                let pwd = std::env::current_dir()?;
+                let pwd = pwd
+                    .into_os_string()
+                    .into_string()
+                    .expect("Failed to convert path");
+
+                return Ok(Self::Pwd(format!("{}\n", pwd)));
             }
             _ => {
                 let output = exec_runner.execute(&cmd, args);
