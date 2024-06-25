@@ -1,6 +1,6 @@
 use std::{io, path::PathBuf, str::FromStr};
 
-use anyhow::{anyhow, Ok};
+use anyhow::anyhow;
 
 fn main() -> anyhow::Result<()> {
     let reader = io::stdin().lock();
@@ -16,6 +16,7 @@ fn main() -> anyhow::Result<()> {
             Command::Exit(code) => std::process::exit(code),
             Command::Echo(prompt) => prompter.prompt(&prompt)?,
             Command::Type(prompt) => prompter.prompt(&prompt)?,
+            Command::Executable(output) => prompter.prompt(&output)?,
             Command::Unknown(prompt) => prompter.prompt(&prompt)?,
         }
     }
@@ -26,6 +27,7 @@ enum Command {
     Exit(i32),
     Echo(String),
     Type(String),
+    Executable(String),
     Unknown(String),
 }
 
@@ -34,7 +36,9 @@ impl FromStr for Command {
 
     fn from_str(s: &str) -> anyhow::Result<Command> {
         let path_env = std::env::var("PATH")?;
+
         let exec_path_looker = ExecPathLooker::new(path_env);
+        let exec_runner = ExecRunner::new();
 
         let parsed: Vec<&str> = s.split_whitespace().collect();
 
@@ -76,11 +80,20 @@ impl FromStr for Command {
                 return Ok(Self::Type(prompt));
             }
             _ => {
+                let output = exec_runner.execute(&cmd, args);
+                if let Ok(result) = output {
+                    return Ok(Self::Executable(result));
+                }
+
                 let prompt = format!("{}: command not found\n", cmd);
                 return Ok(Self::Unknown(prompt));
             }
         }
     }
+}
+
+trait PathLooker {
+    fn look_path(&self, name: &str) -> Option<String>;
 }
 
 struct ExecPathLooker {
@@ -91,7 +104,9 @@ impl ExecPathLooker {
     fn new(env_path: String) -> Self {
         return ExecPathLooker { env_path };
     }
+}
 
+impl PathLooker for ExecPathLooker {
     fn look_path(&self, exec_name: &str) -> Option<String> {
         let env_paths = self.env_path.split(":");
 
@@ -108,6 +123,20 @@ impl ExecPathLooker {
         }
 
         return None;
+    }
+}
+
+struct ExecRunner {}
+
+impl ExecRunner {
+    fn new() -> Self {
+        return ExecRunner {};
+    }
+    fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<String> {
+        let result = std::process::Command::new(exec_name).args(args).output()?;
+        let output = String::from_utf8(result.stdout)?;
+
+        return Ok(output);
     }
 }
 
