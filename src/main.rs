@@ -14,12 +14,26 @@ fn main() -> anyhow::Result<()> {
 
         match input.parse::<Command>()? {
             Command::Exit(code) => std::process::exit(code),
-            Command::Echo(prompt) => prompter.prompt(&prompt)?,
-            Command::Type(prompt) => prompter.prompt(&prompt)?,
-            Command::Pwd(prompt) => prompter.prompt(&prompt)?,
-            Command::Cd(path) => std::env::set_current_dir(path)?,
-            Command::Executable(prompt) => prompter.prompt(&prompt)?,
-            Command::Unknown(prompt) => prompter.prompt(&prompt)?,
+            Command::Echo(output) => prompter.prompt(&output)?,
+            Command::Type(output) => prompter.prompt(&output)?,
+            Command::Pwd(output) => prompter.prompt(&output)?,
+            Command::Cd(path) => {
+                let result = std::env::set_current_dir(&path);
+                match result {
+                    Ok(()) => {}
+                    Err(e) => match e.kind() {
+                        std::io::ErrorKind::NotFound => {
+                            let prompt = format!("cd {}: no such file or directory\n", path);
+                            prompter.prompt(&prompt)?;
+                        }
+                        _ => {
+                            panic!("Error")
+                        }
+                    },
+                }
+            }
+            Command::Executable(output) => prompter.prompt(&output)?,
+            Command::Unknown(output) => prompter.prompt(&output)?,
         }
     }
 }
