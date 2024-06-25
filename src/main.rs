@@ -17,7 +17,8 @@ fn main() -> anyhow::Result<()> {
             Command::Echo(prompt) => prompter.prompt(&prompt)?,
             Command::Type(prompt) => prompter.prompt(&prompt)?,
             Command::Pwd(prompt) => prompter.prompt(&prompt)?,
-            Command::Executable(output) => prompter.prompt(&output)?,
+            Command::Cd(path) => std::env::set_current_dir(path)?,
+            Command::Executable(prompt) => prompter.prompt(&prompt)?,
             Command::Unknown(prompt) => prompter.prompt(&prompt)?,
         }
     }
@@ -29,6 +30,7 @@ enum Command {
     Echo(String),
     Type(String),
     Pwd(String),
+    Cd(String),
     Executable(String),
     Unknown(String),
 }
@@ -89,6 +91,10 @@ impl FromStr for Command {
                     .expect("Failed to convert path");
 
                 return Ok(Self::Pwd(format!("{}\n", pwd)));
+            }
+            "cd" => {
+                let path = args.get(0).ok_or(anyhow!("Invalid arguments"))?.to_string();
+                return Ok(Self::Cd(path));
             }
             _ => {
                 let output = exec_runner.execute(&cmd, args);
