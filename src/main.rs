@@ -15,8 +15,8 @@ fn main() -> anyhow::Result<()> {
     let writer = io::stdout();
     let mut prompter = ConsolePrompter::new(reader, writer);
 
-    let finder = PathFinder {};
-    let runner = Runner {};
+    let finder = PathFinder::new();
+    let runner = Runner::new();
 
     loop {
         prompter.prompt("$ ")?;

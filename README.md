@@ -8,10 +8,42 @@
 
   - But, there is a downside to Rust as well. It is not that easy to compose _traits_ together since you have to, sometimes, worry about lifetimes.
 
-- The structure I've created where we `.parse` a string to `Command` enum works fine, but is a bit awkward.
+- You can encapsulate _a lot_ if you use traits.
 
-  - Most of the operations happen within each command. That is a good thing.
+  - I especially love the fact that you can create methods on enums.
 
-  - The problem is that I can't inject dependencies there.
+  - Let us not forget about the ability to provide default implementations!
 
-    - The solution is to probably use a `struct` somehow.
+- Implementing `FromStr` on the `Command` made the "main" code so concise.
+
+- **Embedding `traits` inside `struct`s is quite hard for me**.
+
+  - First, **since the "size" of the `trait` can only be known at runtime, you have to use `dyn` and `Box`**.
+
+    ```rust
+      struct Foo {
+          prompter: Box<dyn Prompter>,
+      }
+    ```
+
+    You can "hide" this complexity by adding the `new` method and wrap the trait with `Box` there.
+
+    ```rust
+      impl Foo {
+          fn new(prompter: impl Prompter) -> Self {
+              return Self {
+                  prompter: Box::new(prompter),
+              };
+          }
+      }
+    ```
+
+    Still, as a Rust novice, I find it hard to wrap my head around these concepts.
+
+  - Second, and this applies to all struct properties, **as soon as you want to have a pointer to something as struct property, you have to deal with lifetimes**.
+
+    - This makes total sense, but it introduces a lot of complexity.
+
+- Writing tests in Rust is a joy.
+
+  - Side-note: I'm happy that we Node finally has a native test runner!

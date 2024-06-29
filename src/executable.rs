@@ -33,6 +33,18 @@ pub struct PathFinder {}
 
 impl ExecutablePathFinder for PathFinder {}
 
+impl PathFinder {
+    pub fn new() -> Self {
+        return Self {};
+    }
+}
+
 pub struct Runner {}
 
 impl ExecutableRunner for Runner {}
+
+impl Runner {
+    pub fn new() -> Self {
+        return Self {};
+    }
+}
