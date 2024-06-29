@@ -22,6 +22,7 @@ pub enum BuiltinCommand {
     Cd { path: String },
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Command {
     Builtin(BuiltinCommand),
     Unknown { cmd: String, args: Vec<String> },
@@ -87,6 +88,70 @@ impl FromStr for Command {
                 return Ok(command);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod command_from_str_tests {
+    use super::*;
+
+    #[test]
+    fn exit_command() {
+        let input = "exit 19";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Exit { code: 19 });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn echo_command() {
+        let input = "echo foo bar baz";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: "foo bar baz".to_string(),
+        });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn type_well_known() {
+        let input = "type echo";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
+            cmd: "echo".to_string(),
+        }));
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn type_unknown_command() {
+        let input = "type i_do_not_exist";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
+            cmd: "i_do_not_exist".to_string(),
+        }));
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn unknown_command() {
+        let input = "unknown_command foo bar baz";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Unknown {
+            cmd: "unknown_command".to_string(),
+            args: vec!["foo".to_string(), "bar".to_string(), "baz".to_string()],
+        };
+
+        assert_eq!(got_command, expected_command)
     }
 }
 
