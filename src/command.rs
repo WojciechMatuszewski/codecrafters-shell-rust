@@ -90,7 +90,25 @@ impl FromStr for Command {
     }
 }
 
-pub fn run_builtin_command(
+impl Command {
+    pub fn run(
+        self,
+        prompter: &mut impl Prompter,
+        finder: &impl ExecutablePathFinder,
+        runner: &impl ExecutableRunner,
+    ) -> anyhow::Result<()> {
+        match self {
+            Command::Builtin(builtin_command) => {
+                return run_builtin_command(builtin_command, prompter, finder);
+            }
+            Command::Unknown { cmd, args } => {
+                return run_unknown_command(prompter, runner, cmd, args)
+            }
+        }
+    }
+}
+
+fn run_builtin_command(
     command: BuiltinCommand,
     prompter: &mut impl Prompter,
     finder: &impl ExecutablePathFinder,
@@ -157,7 +175,7 @@ pub fn run_builtin_command(
     return Ok(());
 }
 
-pub fn run_unknown_command(
+fn run_unknown_command(
     prompter: &mut impl Prompter,
     runner: &impl ExecutableRunner,
     cmd: String,

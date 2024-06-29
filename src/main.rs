@@ -2,7 +2,7 @@
 
 use std::io;
 
-use command::{run_builtin_command, run_unknown_command, Command};
+use command::Command;
 use executable::{PathFinder, Runner};
 use prompt::{ConsolePrompter, Prompter};
 
@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     let writer = io::stdout();
 
     let mut prompter = ConsolePrompter::new(reader, writer);
-    let path_finder = PathFinder {};
+    let finder = PathFinder {};
     let runner = Runner {};
 
     loop {
@@ -23,14 +23,18 @@ fn main() -> anyhow::Result<()> {
 
         let input = prompter.read()?;
 
-        match input.parse::<Command>()? {
-            Command::Builtin(builtin_command) => {
-                run_builtin_command(builtin_command, &mut prompter, &path_finder)?
-            }
-            Command::Unknown { cmd, args } => {
-                run_unknown_command(&mut prompter, &runner, cmd, args)?;
-            }
-        }
+        let command = input.parse::<Command>()?;
+
+        command.run(&mut prompter, &finder, &runner)?;
+
+        // match input.parse::<Command>()? {
+        //     Command::Builtin(builtin_command) => {
+        //         run_builtin_command(builtin_command, &mut prompter, &path_finder)?
+        //     }
+        //     Command::Unknown { cmd, args } => {
+        //         run_unknown_command(&mut prompter, &runner, cmd, args)?;
+        //     }
+        // }
     }
 
     // let mut prompter = prompt::Prompter::
