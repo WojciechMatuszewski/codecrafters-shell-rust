@@ -49,9 +49,7 @@ impl FromStr for Command {
                 return Ok(command);
             }
             "echo" => {
-                println!("args = {:?}", args);
                 let input = args.join(" ");
-                println!("input = {:?}", input);
                 let command = Command::Builtin(BuiltinCommand::Echo { input });
                 return Ok(command);
             }
