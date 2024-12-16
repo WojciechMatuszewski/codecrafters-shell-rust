@@ -1,4 +1,4 @@
-use std::{ops::Index, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::anyhow;
 
@@ -161,54 +161,12 @@ mod command_from_str_tests {
     }
 
     #[test]
-    fn foobar() {
-        let input = "echo bar foo 'foo    bar' baz";
-
-        let Some((cmd, args)) = input.split_once(' ') else {
-            panic!("foo")
-        };
-
-        println!("cmd = {:?}", cmd);
-
-        let args_iter = args.chars().into_iter();
-
-        let mut in_quotes = false;
-        let mut current_arg = String::from("");
-        let mut args: Vec<String> = vec![];
-
-        for char in args_iter {
-            match char {
-                '\'' => {
-                    in_quotes = !in_quotes;
-                    if !in_quotes {
-                        args.push(current_arg.clone());
-                        current_arg.clear();
-                    }
-                }
-                ' ' if !in_quotes && !current_arg.is_empty() => {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
-                }
-                _ => {
-                    if in_quotes || !char.is_whitespace() {
-                        current_arg.push(char);
-                    }
-                }
-            }
-        }
-        if !current_arg.is_empty() {
-            args.push(current_arg.clone());
-            current_arg.clear();
-        }
-    }
-
-    #[test]
     fn echo_command_quotes() {
         let input = "echo 'fo      bar'";
 
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "'fo      bar'".to_string(),
+            input: "fo      bar".to_string(),
         });
 
         assert_eq!(got_command, expected_command)
