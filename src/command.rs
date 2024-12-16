@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{ops::Index, str::FromStr};
 
 use anyhow::anyhow;
 
@@ -32,11 +32,10 @@ impl FromStr for Command {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parsed: Vec<&str> = s.split_whitespace().collect();
-
-        let [cmd, args @ ..] = parsed.as_slice() else {
+        let Some((cmd, raw_args)) = s.split_once(' ') else {
             return Err(anyhow!("Failed to parse the command"));
         };
+        let args = parse_args(raw_args);
 
         let cmd = cmd.trim();
         match cmd {
@@ -50,13 +49,20 @@ impl FromStr for Command {
                 return Ok(command);
             }
             "echo" => {
+                println!("args = {:?}", args);
                 let input = args.join(" ");
+                println!("input = {:?}", input);
                 let command = Command::Builtin(BuiltinCommand::Echo { input });
                 return Ok(command);
             }
             "type" => {
                 let cmd = args.get(0).ok_or(anyhow!("Invalid arguments"))?;
-                let built_ins = vec!["exit", "echo", "type", "pwd"];
+                let built_ins = vec![
+                    String::from("exit"),
+                    String::from("echo"),
+                    String::from("type"),
+                    String::from("pwd"),
+                ];
 
                 if built_ins.contains(cmd) {
                     let command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
@@ -91,8 +97,45 @@ impl FromStr for Command {
     }
 }
 
+fn parse_args(raw_args: &str) -> Vec<String> {
+    let args_iter = raw_args.chars().into_iter();
+
+    let mut in_quotes = false;
+    let mut current_arg = String::from("");
+    let mut args: Vec<String> = vec![];
+
+    for char in args_iter {
+        match char {
+            '\'' => {
+                in_quotes = !in_quotes;
+                if !in_quotes {
+                    args.push(current_arg.clone());
+                    current_arg.clear();
+                }
+            }
+            ' ' if !in_quotes && !current_arg.is_empty() => {
+                args.push(current_arg.clone());
+                current_arg.clear();
+            }
+            _ => {
+                if in_quotes || !char.is_whitespace() {
+                    current_arg.push(char);
+                }
+            }
+        }
+    }
+    if !current_arg.is_empty() {
+        args.push(current_arg.clone());
+        current_arg.clear();
+    }
+
+    return args;
+}
+
 #[cfg(test)]
 mod command_from_str_tests {
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -112,6 +155,60 @@ mod command_from_str_tests {
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: "foo bar baz".to_string(),
+        });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn foobar() {
+        let input = "echo bar foo 'foo    bar' baz";
+
+        let Some((cmd, args)) = input.split_once(' ') else {
+            panic!("foo")
+        };
+
+        println!("cmd = {:?}", cmd);
+
+        let args_iter = args.chars().into_iter();
+
+        let mut in_quotes = false;
+        let mut current_arg = String::from("");
+        let mut args: Vec<String> = vec![];
+
+        for char in args_iter {
+            match char {
+                '\'' => {
+                    in_quotes = !in_quotes;
+                    if !in_quotes {
+                        args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+                ' ' if !in_quotes && !current_arg.is_empty() => {
+                    args.push(current_arg.clone());
+                    current_arg.clear();
+                }
+                _ => {
+                    if in_quotes || !char.is_whitespace() {
+                        current_arg.push(char);
+                    }
+                }
+            }
+        }
+        if !current_arg.is_empty() {
+            args.push(current_arg.clone());
+            current_arg.clear();
+        }
+    }
+
+    #[test]
+    fn echo_command_quotes() {
+        let input = "echo 'fo      bar'";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: "'fo      bar'".to_string(),
         });
 
         assert_eq!(got_command, expected_command)
@@ -166,6 +263,7 @@ impl Command {
             Command::Builtin(builtin_command) => {
                 return run_builtin_command(builtin_command, prompter, finder);
             }
+
             Command::Unknown { cmd, args } => {
                 return run_unknown_command(prompter, runner, cmd, args)
             }

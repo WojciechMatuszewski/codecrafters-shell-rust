@@ -47,3 +47,11 @@
 - Writing tests in Rust is a joy.
 
   - Side-note: I'm happy that we Node finally has a native test runner!
+
+- The _match pattern guard conditions_ in Rust never cease to amaze me. You can do stuff like the following:
+
+  ```rust
+  ' ' if some_condition => {}
+  ```
+
+  So, you are matching on specific character BUT only if the condition is met.
