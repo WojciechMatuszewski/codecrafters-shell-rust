@@ -31,11 +31,8 @@ pub enum Command {
 impl FromStr for Command {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let Some((cmd, raw_args)) = s.split_once(' ') else {
-            return Err(anyhow!("Failed to parse the command"));
-        };
-        let args = parse_args(raw_args);
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let (cmd, args) = parse_input(input);
 
         let cmd = cmd.trim();
         match cmd {
@@ -95,15 +92,24 @@ impl FromStr for Command {
     }
 }
 
-fn parse_args(raw_args: &str) -> Vec<String> {
-    let args_iter = raw_args.chars().into_iter();
+fn parse_input(input: &str) -> (String, Vec<String>) {
+    let cmd_parts = input.split_once(' ');
+    match cmd_parts {
+        None => return (input.to_string(), vec![]),
+        Some((cmd, args)) => return (cmd.to_string(), parse_input_args(args)),
+    }
+}
+
+fn parse_input_args(input_args: &str) -> Vec<String> {
+    let iter = input_args.chars().into_iter();
 
     let mut in_quotes = false;
     let mut current_arg = String::from("");
+
     let mut args: Vec<String> = vec![];
 
-    for char in args_iter {
-        match char {
+    for args_char in iter {
+        match args_char {
             '\'' => {
                 in_quotes = !in_quotes;
                 if !in_quotes {
@@ -116,8 +122,8 @@ fn parse_args(raw_args: &str) -> Vec<String> {
                 current_arg.clear();
             }
             _ => {
-                if in_quotes || !char.is_whitespace() {
-                    current_arg.push(char);
+                if in_quotes || !args_char.is_whitespace() {
+                    current_arg.push(args_char);
                 }
             }
         }
@@ -147,6 +153,16 @@ mod command_from_str_tests {
     }
 
     #[test]
+    fn built_in_command() {
+        let input = "pwd";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Pwd);
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
     fn echo_command() {
         let input = "echo foo bar baz";
 
@@ -160,11 +176,11 @@ mod command_from_str_tests {
 
     #[test]
     fn echo_command_quotes() {
-        let input = "echo 'fo      bar'";
+        let input = "echo 'fo      bar' baz";
 
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "fo      bar".to_string(),
+            input: "fo      bar baz".to_string(),
         });
 
         assert_eq!(got_command, expected_command)
