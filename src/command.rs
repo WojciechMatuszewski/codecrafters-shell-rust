@@ -101,39 +101,52 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
 }
 
 fn parse_input_args(input_args: &str) -> Vec<String> {
-    let iter = input_args.chars().into_iter();
+    let iter = input_args.chars().enumerate();
 
-    let mut in_quotes = false;
+    let mut char_inside_quotes = false;
     let mut current_arg = String::from("");
 
-    let mut args: Vec<String> = vec![];
+    let mut retrieved_args: Vec<String> = vec![];
 
-    for args_char in iter {
+    for (index, args_char) in iter {
         match args_char {
             '\'' => {
-                in_quotes = !in_quotes;
-                if !in_quotes {
-                    args.push(current_arg.clone());
-                    current_arg.clear();
+                if !char_inside_quotes {
+                    let has_matching_quote = input_args
+                        .get(index + 1..)
+                        .and_then(|next_chars| return next_chars.find('\''))
+                        .is_some();
+
+                    if has_matching_quote {
+                        char_inside_quotes = true;
+                    } else {
+                        current_arg.push(args_char);
+                    }
+                } else {
+                    char_inside_quotes = !char_inside_quotes
                 }
             }
-            ' ' if !in_quotes && !current_arg.is_empty() => {
-                args.push(current_arg.clone());
+            ' ' if !char_inside_quotes && !current_arg.is_empty() => {
+                retrieved_args.push(sanitize_arg(&current_arg));
                 current_arg.clear();
             }
             _ => {
-                if in_quotes || !args_char.is_whitespace() {
+                if char_inside_quotes || !args_char.is_whitespace() {
                     current_arg.push(args_char);
                 }
             }
         }
     }
     if !current_arg.is_empty() {
-        args.push(current_arg.clone());
+        retrieved_args.push(sanitize_arg(&current_arg));
         current_arg.clear();
     }
 
-    return args;
+    return retrieved_args;
+}
+
+fn sanitize_arg(arg: &str) -> String {
+    return arg.replace("\"", "");
 }
 
 #[cfg(test)]
@@ -175,12 +188,36 @@ mod command_from_str_tests {
     }
 
     #[test]
-    fn echo_command_quotes() {
+    fn echo_command_single_quotes() {
         let input = "echo 'fo      bar' baz";
 
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: "fo      bar baz".to_string(),
+        });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn echo_command_double_quotes() {
+        let input = "echo \"quz hello\" \"bar\"";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: "quz hello bar".to_string(),
+        });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn echo_command_double_and_single_quotes() {
+        let input = "echo \"bar\" \"shell's\" \"foo\"";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: "bar shell's foo".to_string(),
         });
 
         assert_eq!(got_command, expected_command)
