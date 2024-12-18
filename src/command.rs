@@ -165,9 +165,9 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
     return retrieved_args;
 }
 
-fn sanitize_arg(arg: &str) -> String {
-    return arg.replace("\"", "");
-}
+// fn sanitize_arg(arg: &str) -> String {
+//     return arg.replace("\"", "");
+// }
 
 #[cfg(test)]
 mod command_from_str_tests {
