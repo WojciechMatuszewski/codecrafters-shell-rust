@@ -103,35 +103,35 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
 fn parse_input_args(input_args: &str) -> Vec<String> {
     let iter = input_args.chars().enumerate();
 
-    let mut char_inside_quotes = false;
+    let mut inside_quotes = false;
     let mut current_arg = String::from("");
-
     let mut retrieved_args: Vec<String> = vec![];
 
     for (index, args_char) in iter {
         match args_char {
             '\'' => {
-                if !char_inside_quotes {
-                    let has_matching_quote = input_args
-                        .get(index + 1..)
-                        .and_then(|next_chars| return next_chars.find('\''))
-                        .is_some();
+                if inside_quotes {
+                    inside_quotes = false;
+                    continue;
+                }
 
-                    if has_matching_quote {
-                        char_inside_quotes = true;
-                    } else {
-                        current_arg.push(args_char);
-                    }
+                let has_matching_quote = input_args
+                    .get(index + 1..)
+                    .and_then(|next_chars| return next_chars.find('\''))
+                    .is_some();
+
+                if has_matching_quote {
+                    inside_quotes = true;
                 } else {
-                    char_inside_quotes = !char_inside_quotes
+                    current_arg.push(args_char);
                 }
             }
-            ' ' if !char_inside_quotes && !current_arg.is_empty() => {
+            ' ' if !inside_quotes && !current_arg.is_empty() => {
                 retrieved_args.push(sanitize_arg(&current_arg));
                 current_arg.clear();
             }
             _ => {
-                if char_inside_quotes || !args_char.is_whitespace() {
+                if inside_quotes || !args_char.is_whitespace() {
                     current_arg.push(args_char);
                 }
             }
