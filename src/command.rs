@@ -147,7 +147,7 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
             ' ' => {
                 if inside_single_quotes || inside_double_quotes {
                     current_arg.push(args_char)
-                } else {
+                } else if !current_arg.is_empty() {
                     retrieved_args.push(current_arg.clone());
                     current_arg.clear();
                 }
@@ -221,6 +221,18 @@ mod command_from_str_tests {
 
     #[test]
     fn echo_command_double_quotes() {
+        let input = "echo \"quz              hello\"   \"bar\"";
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: "quz              hello bar".to_string(),
+        });
+
+        assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn echo_command_double_quotes2() {
         let input = "echo \"quz              hello\" \"bar\"";
 
         let got_command = input.parse::<Command>().unwrap();
