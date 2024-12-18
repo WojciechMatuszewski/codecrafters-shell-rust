@@ -103,15 +103,17 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
 fn parse_input_args(input_args: &str) -> Vec<String> {
     let iter = input_args.chars().enumerate();
 
-    let mut inside_quotes = false;
+    let mut inside_single_quotes = false;
+    let mut inside_double_quotes = false;
+
     let mut current_arg = String::from("");
     let mut retrieved_args: Vec<String> = vec![];
 
     for (index, args_char) in iter {
         match args_char {
             '\'' => {
-                if inside_quotes {
-                    inside_quotes = false;
+                if inside_single_quotes {
+                    inside_single_quotes = false;
                     continue;
                 }
 
@@ -121,24 +123,42 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                     .is_some();
 
                 if has_matching_quote {
-                    inside_quotes = true;
+                    inside_single_quotes = true;
                 } else {
                     current_arg.push(args_char);
                 }
             }
-            ' ' if !inside_quotes && !current_arg.is_empty() => {
-                retrieved_args.push(sanitize_arg(&current_arg));
-                current_arg.clear();
+            '\"' => {
+                if inside_double_quotes {
+                    inside_double_quotes = false;
+                } else {
+                    let has_matching_quote = input_args
+                        .get(index + 1..)
+                        .and_then(|next_chars| return next_chars.find('\"'))
+                        .is_some();
+
+                    if !has_matching_quote {
+                        current_arg.push(args_char);
+                    }
+
+                    inside_double_quotes = has_matching_quote
+                }
+            }
+            ' ' => {
+                if inside_single_quotes || inside_double_quotes {
+                    current_arg.push(args_char)
+                } else {
+                    retrieved_args.push(current_arg.clone());
+                    current_arg.clear();
+                }
             }
             _ => {
-                if inside_quotes || !args_char.is_whitespace() {
-                    current_arg.push(args_char);
-                }
+                current_arg.push(args_char);
             }
         }
     }
     if !current_arg.is_empty() {
-        retrieved_args.push(sanitize_arg(&current_arg));
+        retrieved_args.push(current_arg.clone());
         current_arg.clear();
     }
 
@@ -201,11 +221,11 @@ mod command_from_str_tests {
 
     #[test]
     fn echo_command_double_quotes() {
-        let input = "echo \"quz hello\" \"bar\"";
+        let input = "echo \"quz              hello\" \"bar\"";
 
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "quz hello bar".to_string(),
+            input: "quz              hello bar".to_string(),
         });
 
         assert_eq!(got_command, expected_command)
