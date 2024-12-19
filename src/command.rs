@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{env::args, str::FromStr};
 
 use anyhow::anyhow;
 
@@ -110,8 +110,18 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
     let mut retrieved_args: Vec<String> = vec![];
 
     for (index, args_char) in iter {
+        let inside_quotes = inside_double_quotes || inside_single_quotes;
+        let is_previous_escape_char = index > 0 && input_args.chars().nth(index - 1) == Some('\\');
+
+        let is_escaped_char = !inside_quotes && is_previous_escape_char;
+
         match args_char {
             '\'' => {
+                if is_escaped_char {
+                    current_arg.push(args_char);
+                    continue;
+                }
+
                 if inside_single_quotes {
                     inside_single_quotes = false;
                     continue;
@@ -129,20 +139,26 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                 }
             }
             '\"' => {
+                if is_escaped_char {
+                    current_arg.push(args_char);
+                    continue;
+                }
+
                 if inside_double_quotes {
                     inside_double_quotes = false;
-                } else {
-                    let has_matching_quote = input_args
-                        .get(index + 1..)
-                        .and_then(|next_chars| return next_chars.find('\"'))
-                        .is_some();
-
-                    if !has_matching_quote {
-                        current_arg.push(args_char);
-                    }
-
-                    inside_double_quotes = has_matching_quote
+                    continue;
                 }
+
+                let has_matching_quote = input_args
+                    .get(index + 1..)
+                    .and_then(|next_chars| return next_chars.find('\"'))
+                    .is_some();
+
+                if !has_matching_quote {
+                    current_arg.push(args_char);
+                }
+
+                inside_double_quotes = has_matching_quote
             }
             '\\' => {
                 if inside_double_quotes {
@@ -150,12 +166,18 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                 }
             }
             ' ' => {
-                if inside_double_quotes || inside_single_quotes {
+                if inside_quotes {
                     current_arg.push(args_char);
-                } else if !current_arg.is_empty() {
+                    continue;
+                }
+
+                if !current_arg.is_empty() {
                     retrieved_args.push(current_arg.clone());
                     current_arg.clear();
-                } else if input_args.chars().nth(index - 1) == Some('\\') {
+                    continue;
+                }
+
+                if is_previous_escape_char {
                     current_arg.push(args_char);
                 }
             }
