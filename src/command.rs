@@ -144,12 +144,19 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                     inside_double_quotes = has_matching_quote
                 }
             }
+            '\\' => {
+                if inside_double_quotes {
+                    current_arg.push(args_char);
+                }
+            }
             ' ' => {
-                if inside_single_quotes || inside_double_quotes {
-                    current_arg.push(args_char)
+                if inside_double_quotes || inside_single_quotes {
+                    current_arg.push(args_char);
                 } else if !current_arg.is_empty() {
                     retrieved_args.push(current_arg.clone());
                     current_arg.clear();
+                } else if input_args.chars().nth(index - 1) == Some('\\') {
+                    current_arg.push(args_char);
                 }
             }
             _ => {
@@ -164,10 +171,6 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
 
     return retrieved_args;
 }
-
-// fn sanitize_arg(arg: &str) -> String {
-//     return arg.replace("\"", "");
-// }
 
 #[cfg(test)]
 mod command_from_str_tests {
@@ -205,6 +208,30 @@ mod command_from_str_tests {
         });
 
         assert_eq!(got_command, expected_command)
+    }
+
+    #[test]
+    fn echo_command_quoted_backslash() {
+        let input = r#"echo "before\   after""#;
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: r#"before\   after"#.to_string(),
+        });
+
+        assert_eq!(got_command, expected_command);
+    }
+
+    #[test]
+    fn echo_command_non_quoted_backslash() {
+        let input = r#"echo world\ \ \ \ \ \ script"#;
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: r#"world      script"#.to_string(),
+        });
+
+        assert_eq!(got_command, expected_command);
     }
 
     #[test]
