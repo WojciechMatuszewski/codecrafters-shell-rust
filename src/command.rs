@@ -118,13 +118,13 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
 
         match args_char {
             '\'' => {
-                if is_escaped_char {
-                    current_arg.push(args_char);
+                if inside_single_quotes {
+                    inside_single_quotes = false;
                     continue;
                 }
 
-                if inside_single_quotes {
-                    inside_single_quotes = false;
+                if is_escaped_char {
+                    current_arg.push(args_char);
                     continue;
                 }
 
@@ -306,6 +306,18 @@ mod command_from_str_tests {
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: r#"f'\'60"#.to_string(),
+        });
+
+        assert_eq!(got_command, expected_command);
+    }
+
+    #[test]
+    fn echo_command_single_quoted_backslash() {
+        let input = r#"echo "/'f \21\'""#;
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: r#"/'f \21\'"#.to_string(),
         });
 
         assert_eq!(got_command, expected_command);
