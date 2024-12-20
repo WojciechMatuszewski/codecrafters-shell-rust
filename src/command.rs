@@ -110,10 +110,13 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
     let mut retrieved_args: Vec<String> = vec![];
 
     for (index, args_char) in iter {
+        let index = index as i32;
         let inside_quotes = inside_double_quotes || inside_single_quotes;
-        let is_previous_escape_char = index > 0 && input_args.chars().nth(index - 1) == Some('\\');
+        let is_previous_escape_char = char_at(input_args, index - 1) == Some('\\');
 
         let is_escaped_char = !inside_quotes && is_previous_escape_char;
+
+        println!("args_char = {:?}", args_char);
 
         match args_char {
             '\'' => {
@@ -127,9 +130,27 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                     continue;
                 }
 
+                let start_at_index = (index + 1) as usize;
                 let has_matching_quote = input_args
-                    .get(index + 1..)
-                    .and_then(|next_chars| return next_chars.find('\''))
+                    .get(start_at_index..)
+                    .unwrap_or("")
+                    .chars()
+                    .enumerate()
+                    .find(|&(offset, char)| {
+                        let is_quote = char == '\'';
+                        if !is_quote {
+                            return false;
+                        }
+
+                        let check_at_index = (index as i32 + offset as i32 - 1 as i32) as i32;
+                        let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
+
+                        if is_escaped_quote {
+                            return false;
+                        }
+
+                        return true;
+                    })
                     .is_some();
 
                 if has_matching_quote {
@@ -149,16 +170,33 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                     continue;
                 }
 
+                let start_at_index = (index + 1) as usize;
                 let has_matching_quote = input_args
-                    .get(index + 1..)
-                    .and_then(|next_chars| return next_chars.find('\"'))
+                    .get(start_at_index..)
+                    .unwrap_or("")
+                    .chars()
+                    .enumerate()
+                    .find(|&(offset, char)| {
+                        let is_quote = char == '\"';
+                        if !is_quote {
+                            return false;
+                        }
+
+                        let check_at_index = (index as i32 + offset as i32 - 1 as i32) as i32;
+                        let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
+                        if is_escaped_quote {
+                            return false;
+                        }
+
+                        return true;
+                    })
                     .is_some();
 
                 if !has_matching_quote {
                     current_arg.push(args_char);
+                } else {
+                    inside_double_quotes = true
                 }
-
-                inside_double_quotes = has_matching_quote
             }
             '\\' => {
                 if inside_double_quotes {
@@ -192,6 +230,14 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
     }
 
     return retrieved_args;
+}
+
+fn char_at(s: &str, index: i32) -> Option<char> {
+    if index <= 0 {
+        return None;
+    }
+
+    return s.chars().nth(index as usize);
 }
 
 #[cfg(test)]
@@ -251,6 +297,18 @@ mod command_from_str_tests {
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: r#"world      script"#.to_string(),
+        });
+
+        assert_eq!(got_command, expected_command);
+    }
+
+    #[test]
+    fn echo_command_non_quoted_backslash2() {
+        let input = r#"echo /tmp/bar/f'\\'33"#;
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: r#"/tmp/bar/f'\'33"#.to_string(),
         });
 
         assert_eq!(got_command, expected_command);
@@ -340,6 +398,23 @@ mod command_from_str_tests {
 
         assert_eq!(got_command, expected_command)
     }
+
+    // #[test]
+    // fn unknown_command_escape() {
+    //     let input = r#"cat "/tmp/bar/f\n4" "/tmp/bar/f\28" "/tmp/bar/f'\'33"#;
+
+    //     let got_command = input.parse::<Command>().unwrap();
+    //     let expected_command = Command::Unknown {
+    //         cmd: "cat".to_string(),
+    //         args: vec![
+    //             r#"/tmp/bar/f\n4"#.to_string(),
+    //             r#"/tmp/bar/f\28"#.to_string(),
+    //             r#"/tmp/bar/f'\'33"#.to_string(),
+    //         ],
+    //     };
+
+    //     assert_eq!(got_command, expected_command)
+    // }
 }
 
 impl Command {
