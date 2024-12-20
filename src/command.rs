@@ -157,13 +157,13 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                 }
             }
             '\"' => {
-                if is_escaped_char {
-                    current_arg.push(args_char);
+                if inside_double_quotes {
+                    inside_double_quotes = false;
                     continue;
                 }
 
-                if inside_double_quotes {
-                    inside_double_quotes = false;
+                if is_escaped_char {
+                    current_arg.push(args_char);
                     continue;
                 }
 
