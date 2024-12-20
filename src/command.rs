@@ -196,7 +196,7 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                 }
             }
             '\\' => {
-                if inside_double_quotes {
+                if inside_quotes {
                     current_arg.push(args_char);
                 }
             }
