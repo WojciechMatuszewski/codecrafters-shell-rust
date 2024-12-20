@@ -116,8 +116,6 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
 
         let is_escaped_char = !inside_quotes && is_previous_escape_char;
 
-        println!("args_char = {:?}", args_char);
-
         match args_char {
             '\'' => {
                 if is_escaped_char {
