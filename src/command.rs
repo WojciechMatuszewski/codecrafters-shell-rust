@@ -140,9 +140,8 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                             return false;
                         }
 
-                        let check_at_index = (index as i32 + offset as i32 - 1 as i32) as i32;
+                        let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
-
                         if is_escaped_quote {
                             return false;
                         }
@@ -180,7 +179,7 @@ fn parse_input_args(input_args: &str) -> Vec<String> {
                             return false;
                         }
 
-                        let check_at_index = (index as i32 + offset as i32 - 1 as i32) as i32;
+                        let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
                         if is_escaped_quote {
                             return false;
@@ -302,11 +301,11 @@ mod command_from_str_tests {
 
     #[test]
     fn echo_command_non_quoted_backslash2() {
-        let input = r#"echo /tmp/bar/f'\\'33"#;
+        let input = r#"echo "f'\'60""#;
 
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#"/tmp/bar/f'\'33"#.to_string(),
+            input: r#"f'\'60"#.to_string(),
         });
 
         assert_eq!(got_command, expected_command);
