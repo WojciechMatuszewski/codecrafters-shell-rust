@@ -405,19 +405,19 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '\\' => {
-                let special_chars = vec!['\\', '$', '"', 'n'];
-                let is_special_char =
-                    next_char.map_or(false, |c| return special_chars.contains(&c));
-
-                if is_special_char {
-                    continue;
-                }
-
                 if inside_single_quotes {
                     current_arg.push(current_char);
                 }
 
                 if inside_double_quotes {
+                    let special_chars = vec!['$', '"', 'n'];
+                    let is_special_char =
+                        next_char.map_or(false, |c| return special_chars.contains(&c));
+
+                    if is_special_char {
+                        continue;
+                    }
+
                     current_arg.push(current_char);
                 }
             }
