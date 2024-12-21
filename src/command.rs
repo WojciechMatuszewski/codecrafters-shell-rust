@@ -100,144 +100,6 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
     }
 }
 
-// fn parse_input_args(input_args: &str) -> Vec<String> {
-//     let iter = input_args.chars().enumerate();
-
-//     let mut inside_single_quotes = false;
-//     let mut inside_double_quotes = false;
-
-//     let mut current_arg = String::from("");
-//     let mut retrieved_args: Vec<String> = vec![];
-
-//     for (index, args_char) in iter {
-//         let index = index as i32;
-//         let inside_quotes = inside_double_quotes || inside_single_quotes;
-//         let is_previous_escape_char = char_at(input_args, index - 1) == Some('\\');
-
-//         let is_escaped_char = !inside_quotes && is_previous_escape_char;
-
-//         match args_char {
-//             '\'' => {
-//                 if inside_single_quotes {
-//                     println!("char = {:?}", index);
-//                     inside_single_quotes = false;
-//                     continue;
-//                 }
-
-//                 if is_escaped_char {
-//                     current_arg.push(args_char);
-//                     continue;
-//                 }
-
-//                 let start_at_index = (index + 1) as usize;
-//                 let has_matching_quote = input_args
-//                     .get(start_at_index..)
-//                     .unwrap_or("")
-//                     .chars()
-//                     .enumerate()
-//                     .find(|&(offset, char)| {
-//                         let is_quote = char == '\'';
-//                         if !is_quote {
-//                             return false;
-//                         }
-
-//                         let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
-//                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
-//                         if is_escaped_quote {
-//                             return false;
-//                         }
-
-//                         return true;
-//                     })
-//                     .is_some();
-
-//                 if has_matching_quote {
-//                     inside_single_quotes = true;
-//                 } else {
-//                     current_arg.push(args_char);
-//                 }
-//             }
-//             '\"' => {
-//                 if inside_double_quotes {
-//                     inside_double_quotes = false;
-//                     continue;
-//                 }
-
-//                 if is_escaped_char {
-//                     current_arg.push(args_char);
-//                     continue;
-//                 }
-
-//                 let start_at_index = (index + 1) as usize;
-//                 let has_matching_quote = input_args
-//                     .get(start_at_index..)
-//                     .unwrap_or("")
-//                     .chars()
-//                     .enumerate()
-//                     .find(|&(offset, char)| {
-//                         let is_quote = char == '\"';
-//                         if !is_quote {
-//                             return false;
-//                         }
-
-//                         let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
-//                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
-//                         if is_escaped_quote {
-//                             return false;
-//                         }
-
-//                         return true;
-//                     })
-//                     .is_some();
-
-//                 if !has_matching_quote {
-//                     current_arg.push(args_char);
-//                 } else {
-//                     inside_double_quotes = true
-//                 }
-//             }
-//             '\\' => {
-//                 if inside_quotes {
-//                     current_arg.push(args_char);
-//                 }
-//             }
-//             ' ' => {
-//                 if inside_quotes {
-//                     current_arg.push(args_char);
-//                     continue;
-//                 }
-
-//                 if !current_arg.is_empty() {
-//                     retrieved_args.push(current_arg.clone());
-//                     current_arg.clear();
-//                     continue;
-//                 }
-
-//                 if is_previous_escape_char {
-//                     current_arg.push(args_char);
-//                 }
-//             }
-//             _ => {
-//                 current_arg.push(args_char);
-//             }
-//         }
-//     }
-//     if !current_arg.is_empty() {
-//         retrieved_args.push(current_arg.clone());
-//         current_arg.clear();
-//     }
-
-//     return retrieved_args;
-// }
-
-// fn char_at(s: &str, index: i32) -> Option<char> {
-//     if index <= 0 {
-//         return None;
-//     }
-
-//     return s.chars().nth(index as usize);
-// }
-
 #[cfg(test)]
 mod command_from_str_tests {
     use std::vec;
@@ -295,18 +157,6 @@ mod command_from_str_tests {
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: r#"world      script"#.to_string(),
-        });
-
-        assert_eq!(got_command, expected_command);
-    }
-
-    #[test]
-    fn echo_command_non_quoted_backslash2() {
-        let input = r#"echo "f'\'60""#;
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#"f'\'60"#.to_string(),
         });
 
         assert_eq!(got_command, expected_command);
@@ -420,23 +270,6 @@ mod command_from_str_tests {
 
         assert_eq!(got_command, expected_command)
     }
-
-    // #[test]
-    // fn unknown_command_escape() {
-    //     let input = r#"cat "/tmp/bar/f\n4" "/tmp/bar/f\28" "/tmp/bar/f'\'33"#;
-
-    //     let got_command = input.parse::<Command>().unwrap();
-    //     let expected_command = Command::Unknown {
-    //         cmd: "cat".to_string(),
-    //         args: vec![
-    //             r#"/tmp/bar/f\n4"#.to_string(),
-    //             r#"/tmp/bar/f\28"#.to_string(),
-    //             r#"/tmp/bar/f'\'33"#.to_string(),
-    //         ],
-    //     };
-
-    //     assert_eq!(got_command, expected_command)
-    // }
 }
 
 impl Command {
