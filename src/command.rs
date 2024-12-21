@@ -405,8 +405,11 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '\\' => {
-                let is_next_newline = next_char == Some('n');
-                if is_next_newline {
+                let special_chars = vec!['\\', '$', '"', 'n'];
+                let is_special_char =
+                    next_char.map_or(false, |c| return special_chars.contains(&c));
+
+                if is_special_char {
                     continue;
                 }
 
