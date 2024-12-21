@@ -391,6 +391,8 @@ fn parse_args(args: &str) -> Vec<String> {
             None
         };
 
+        let next_char = args.chars().nth(index + 1);
+
         match current_char {
             '\'' => {
                 let is_previous_escape_char = prev_char == Some('\\');
@@ -403,9 +405,15 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '\\' => {
+                let is_next_newline = next_char == Some('n');
+                if is_next_newline {
+                    continue;
+                }
+
                 if inside_single_quotes {
                     current_arg.push(current_char);
                 }
+
                 if inside_double_quotes {
                     current_arg.push(current_char);
                 }
@@ -585,7 +593,7 @@ mod parse_args_tests {
         let args = r#""/'f  \78'""#;
 
         let output = parse_args(args);
-        let expected = vec![r#""/'f  \78'""#.to_string()];
+        let expected = vec![r#"/'f  \78'"#.to_string()];
 
         assert_eq!(output, expected)
     }
@@ -596,6 +604,16 @@ mod parse_args_tests {
 
         let output = parse_args(args);
         let expected = vec![r#"first  second"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn double_quoted_backslash() {
+        let args = r#""test'world'\\n'example""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"test'world'\n'example"#.to_string()];
 
         assert_eq!(output, expected)
     }
