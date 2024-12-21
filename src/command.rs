@@ -230,13 +230,13 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
 //     return retrieved_args;
 // }
 
-fn char_at(s: &str, index: i32) -> Option<char> {
-    if index <= 0 {
-        return None;
-    }
+// fn char_at(s: &str, index: i32) -> Option<char> {
+//     if index <= 0 {
+//         return None;
+//     }
 
-    return s.chars().nth(index as usize);
-}
+//     return s.chars().nth(index as usize);
+// }
 
 #[cfg(test)]
 mod command_from_str_tests {
