@@ -96,138 +96,139 @@ fn parse_input(input: &str) -> (String, Vec<String>) {
     let cmd_parts = input.split_once(' ');
     match cmd_parts {
         None => return (input.to_string(), vec![]),
-        Some((cmd, args)) => return (cmd.to_string(), parse_input_args(args)),
+        Some((cmd, args)) => return (cmd.to_string(), parse_args(args)),
     }
 }
 
-fn parse_input_args(input_args: &str) -> Vec<String> {
-    let iter = input_args.chars().enumerate();
+// fn parse_input_args(input_args: &str) -> Vec<String> {
+//     let iter = input_args.chars().enumerate();
 
-    let mut inside_single_quotes = false;
-    let mut inside_double_quotes = false;
+//     let mut inside_single_quotes = false;
+//     let mut inside_double_quotes = false;
 
-    let mut current_arg = String::from("");
-    let mut retrieved_args: Vec<String> = vec![];
+//     let mut current_arg = String::from("");
+//     let mut retrieved_args: Vec<String> = vec![];
 
-    for (index, args_char) in iter {
-        let index = index as i32;
-        let inside_quotes = inside_double_quotes || inside_single_quotes;
-        let is_previous_escape_char = char_at(input_args, index - 1) == Some('\\');
+//     for (index, args_char) in iter {
+//         let index = index as i32;
+//         let inside_quotes = inside_double_quotes || inside_single_quotes;
+//         let is_previous_escape_char = char_at(input_args, index - 1) == Some('\\');
 
-        let is_escaped_char = !inside_quotes && is_previous_escape_char;
+//         let is_escaped_char = !inside_quotes && is_previous_escape_char;
 
-        match args_char {
-            '\'' => {
-                if inside_single_quotes {
-                    inside_single_quotes = false;
-                    continue;
-                }
+//         match args_char {
+//             '\'' => {
+//                 if inside_single_quotes {
+//                     println!("char = {:?}", index);
+//                     inside_single_quotes = false;
+//                     continue;
+//                 }
 
-                if is_escaped_char {
-                    current_arg.push(args_char);
-                    continue;
-                }
+//                 if is_escaped_char {
+//                     current_arg.push(args_char);
+//                     continue;
+//                 }
 
-                let start_at_index = (index + 1) as usize;
-                let has_matching_quote = input_args
-                    .get(start_at_index..)
-                    .unwrap_or("")
-                    .chars()
-                    .enumerate()
-                    .find(|&(offset, char)| {
-                        let is_quote = char == '\'';
-                        if !is_quote {
-                            return false;
-                        }
+//                 let start_at_index = (index + 1) as usize;
+//                 let has_matching_quote = input_args
+//                     .get(start_at_index..)
+//                     .unwrap_or("")
+//                     .chars()
+//                     .enumerate()
+//                     .find(|&(offset, char)| {
+//                         let is_quote = char == '\'';
+//                         if !is_quote {
+//                             return false;
+//                         }
 
-                        let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
-                        let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
-                        if is_escaped_quote {
-                            return false;
-                        }
+//                         let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
+//                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
+//                         if is_escaped_quote {
+//                             return false;
+//                         }
 
-                        return true;
-                    })
-                    .is_some();
+//                         return true;
+//                     })
+//                     .is_some();
 
-                if has_matching_quote {
-                    inside_single_quotes = true;
-                } else {
-                    current_arg.push(args_char);
-                }
-            }
-            '\"' => {
-                if inside_double_quotes {
-                    inside_double_quotes = false;
-                    continue;
-                }
+//                 if has_matching_quote {
+//                     inside_single_quotes = true;
+//                 } else {
+//                     current_arg.push(args_char);
+//                 }
+//             }
+//             '\"' => {
+//                 if inside_double_quotes {
+//                     inside_double_quotes = false;
+//                     continue;
+//                 }
 
-                if is_escaped_char {
-                    current_arg.push(args_char);
-                    continue;
-                }
+//                 if is_escaped_char {
+//                     current_arg.push(args_char);
+//                     continue;
+//                 }
 
-                let start_at_index = (index + 1) as usize;
-                let has_matching_quote = input_args
-                    .get(start_at_index..)
-                    .unwrap_or("")
-                    .chars()
-                    .enumerate()
-                    .find(|&(offset, char)| {
-                        let is_quote = char == '\"';
-                        if !is_quote {
-                            return false;
-                        }
+//                 let start_at_index = (index + 1) as usize;
+//                 let has_matching_quote = input_args
+//                     .get(start_at_index..)
+//                     .unwrap_or("")
+//                     .chars()
+//                     .enumerate()
+//                     .find(|&(offset, char)| {
+//                         let is_quote = char == '\"';
+//                         if !is_quote {
+//                             return false;
+//                         }
 
-                        let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
-                        let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
-                        if is_escaped_quote {
-                            return false;
-                        }
+//                         let check_at_index = start_at_index as i32 + offset as i32 - 1 as i32;
+//                         let is_escaped_quote = char_at(input_args, check_at_index) == Some('\\');
+//                         if is_escaped_quote {
+//                             return false;
+//                         }
 
-                        return true;
-                    })
-                    .is_some();
+//                         return true;
+//                     })
+//                     .is_some();
 
-                if !has_matching_quote {
-                    current_arg.push(args_char);
-                } else {
-                    inside_double_quotes = true
-                }
-            }
-            '\\' => {
-                if inside_quotes {
-                    current_arg.push(args_char);
-                }
-            }
-            ' ' => {
-                if inside_quotes {
-                    current_arg.push(args_char);
-                    continue;
-                }
+//                 if !has_matching_quote {
+//                     current_arg.push(args_char);
+//                 } else {
+//                     inside_double_quotes = true
+//                 }
+//             }
+//             '\\' => {
+//                 if inside_quotes {
+//                     current_arg.push(args_char);
+//                 }
+//             }
+//             ' ' => {
+//                 if inside_quotes {
+//                     current_arg.push(args_char);
+//                     continue;
+//                 }
 
-                if !current_arg.is_empty() {
-                    retrieved_args.push(current_arg.clone());
-                    current_arg.clear();
-                    continue;
-                }
+//                 if !current_arg.is_empty() {
+//                     retrieved_args.push(current_arg.clone());
+//                     current_arg.clear();
+//                     continue;
+//                 }
 
-                if is_previous_escape_char {
-                    current_arg.push(args_char);
-                }
-            }
-            _ => {
-                current_arg.push(args_char);
-            }
-        }
-    }
-    if !current_arg.is_empty() {
-        retrieved_args.push(current_arg.clone());
-        current_arg.clear();
-    }
+//                 if is_previous_escape_char {
+//                     current_arg.push(args_char);
+//                 }
+//             }
+//             _ => {
+//                 current_arg.push(args_char);
+//             }
+//         }
+//     }
+//     if !current_arg.is_empty() {
+//         retrieved_args.push(current_arg.clone());
+//         current_arg.clear();
+//     }
 
-    return retrieved_args;
-}
+//     return retrieved_args;
+// }
 
 fn char_at(s: &str, index: i32) -> Option<char> {
     if index <= 0 {
@@ -318,6 +319,18 @@ mod command_from_str_tests {
         let got_command = input.parse::<Command>().unwrap();
         let expected_command = Command::Builtin(BuiltinCommand::Echo {
             input: r#"/'f \21\'"#.to_string(),
+        });
+
+        assert_eq!(got_command, expected_command);
+    }
+
+    #[test]
+    fn echo_command_single_quoted_backslash2() {
+        let input = r#"echo "/'f  \78'""#;
+
+        let got_command = input.parse::<Command>().unwrap();
+        let expected_command = Command::Builtin(BuiltinCommand::Echo {
+            input: r#""/'f  \78'""#.to_string(),
         });
 
         assert_eq!(got_command, expected_command);
@@ -529,4 +542,228 @@ fn run_unknown_command(
 
     let prompt = format!("{}: command not found\n", cmd);
     return prompter.prompt(&prompt);
+}
+
+fn parse_args(args: &str) -> Vec<String> {
+    let mut current_arg = String::new();
+    let mut parsed_args: Vec<String> = vec![];
+
+    let mut inside_single_quotes = false;
+    let mut inside_double_quotes = false;
+
+    for (index, current_char) in args.chars().enumerate() {
+        let prev_char = if index > 0 {
+            args.chars().nth(index - 1)
+        } else {
+            None
+        };
+
+        match current_char {
+            '\'' => {
+                let is_previous_escape_char = prev_char == Some('\\');
+                if is_previous_escape_char {
+                    current_arg.push(current_char);
+                } else if inside_double_quotes {
+                    current_arg.push(current_char)
+                } else {
+                    inside_single_quotes = !inside_single_quotes;
+                }
+            }
+            '\\' => {
+                if inside_single_quotes {
+                    current_arg.push(current_char);
+                }
+                if inside_double_quotes {
+                    current_arg.push(current_char);
+                }
+            }
+            '"' => {
+                let is_previous_escape_char = prev_char == Some('\\');
+                if is_previous_escape_char {
+                    current_arg.push(current_char)
+                } else if inside_single_quotes {
+                    current_arg.push(current_char);
+                } else {
+                    inside_double_quotes = !inside_double_quotes
+                }
+            }
+            ' ' => {
+                let is_previous_escape_char = prev_char == Some('\\');
+                if inside_single_quotes {
+                    current_arg.push(current_char);
+                } else if inside_double_quotes {
+                    current_arg.push(current_char);
+                } else if is_previous_escape_char {
+                    current_arg.push(current_char);
+                } else if !current_arg.is_empty() {
+                    parsed_args.push(current_arg.clone());
+                    current_arg.clear();
+                }
+            }
+            _ => {
+                current_arg.push(current_char);
+            }
+        }
+    }
+
+    parsed_args.push(current_arg);
+    return parsed_args;
+}
+
+#[cfg(test)]
+mod parse_args_tests {
+    use super::*;
+
+    #[test]
+    fn single_arg() {
+        let args = r#"single"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"single"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn single_arg_single_quotes() {
+        let args = r#"'single'"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"single"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn single_arg_escaped_single_quote() {
+        {
+            let args = r#"sing\'le"#;
+
+            let output = parse_args(args);
+            let expected = vec![r#"sing'le"#.to_string()];
+
+            assert_eq!(output, expected)
+        }
+
+        {
+            let args = r#"\'single"#;
+
+            let output = parse_args(args);
+            let expected = vec![r#"'single"#.to_string()];
+
+            assert_eq!(output, expected)
+        }
+
+        {
+            let args = r#"single\'"#;
+
+            let output = parse_args(args);
+            let expected = vec![r#"single'"#.to_string()];
+
+            assert_eq!(output, expected)
+        }
+    }
+
+    #[test]
+    fn multiple_args_escaped_quote() {
+        let args = r#"f\'irst secon\'d"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"f'irst"#.to_string(), r#"secon'd"#.to_string()];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn single_arg_double_quotes() {
+        let args = r#""single""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"single"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn escaped_double_quotes() {
+        let args = r#"first\"second"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"first"second"#.to_string()];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn escaped_double_quotes_inside_single_quotes() {
+        let args = r#"'sin\"gle'"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"sin\"gle"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn multiple_args() {
+        let args = r#"first second"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"first"#.to_string(), r#"second"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn double_quotes_inside_single_quotes() {
+        let args = r#"'first"second' '"first second'"#;
+
+        let output = parse_args(args);
+        let expected = vec![
+            r#"first"second"#.to_string(),
+            r#""first second"#.to_string(),
+        ];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn multiple_args_double_quotes_whitespace() {
+        let args = r#""first  second"   "first""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"first  second"#.to_string(), r#"first"#.to_string()];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn single_quoted_backslash() {
+        let args = r#""/'f \21\'""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"/'f \21\'"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn single_quoted_backslash2() {
+        let args = r#""/'f  \78'""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#""/'f  \78'""#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn non_quoted_backslash_space() {
+        let args = r#"first\ \ \second"#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"first  second"#.to_string()];
+
+        assert_eq!(output, expected)
+    }
 }
