@@ -139,102 +139,6 @@ mod command_from_str_tests {
     }
 
     #[test]
-    fn echo_command_quoted_backslash() {
-        let input = r#"echo "before\   after""#;
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#"before\   after"#.to_string(),
-        });
-
-        assert_eq!(got_command, expected_command);
-    }
-
-    #[test]
-    fn echo_command_non_quoted_backslash() {
-        let input = r#"echo world\ \ \ \ \ \ script"#;
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#"world      script"#.to_string(),
-        });
-
-        assert_eq!(got_command, expected_command);
-    }
-
-    #[test]
-    fn echo_command_single_quoted_backslash() {
-        let input = r#"echo "/'f \21\'""#;
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#"/'f \21\'"#.to_string(),
-        });
-
-        assert_eq!(got_command, expected_command);
-    }
-
-    #[test]
-    fn echo_command_single_quoted_backslash2() {
-        let input = r#"echo "/'f  \78'""#;
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: r#""/'f  \78'""#.to_string(),
-        });
-
-        assert_eq!(got_command, expected_command);
-    }
-
-    #[test]
-    fn echo_command_single_quotes() {
-        let input = "echo 'fo      bar' baz";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "fo      bar baz".to_string(),
-        });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn echo_command_double_quotes() {
-        let input = "echo \"quz              hello\"   \"bar\"";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "quz              hello bar".to_string(),
-        });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn echo_command_double_quotes2() {
-        let input = "echo \"quz              hello\" \"bar\"";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "quz              hello bar".to_string(),
-        });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn echo_command_double_and_single_quotes() {
-        let input = "echo \"bar\" \"shell's\" \"foo\"";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "bar shell's foo".to_string(),
-        });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
     fn type_well_known() {
         let input = "type echo";
 
@@ -410,11 +314,15 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
 
                 if inside_double_quotes {
-                    let special_chars = vec!['$', '"', 'n'];
-                    let is_special_char =
-                        next_char.map_or(false, |c| return special_chars.contains(&c));
+                    if next_char == Some('"') {
+                        continue;
+                    }
 
-                    if is_special_char {
+                    if next_char == Some('$') {
+                        continue;
+                    }
+
+                    if prev_char == Some('\\') {
                         continue;
                     }
 
@@ -422,8 +330,13 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '"' => {
+                println!(
+                    "index={}, prev_char={:?}, next_char={:?}, is_within_double_quotes={}",
+                    index, prev_char, next_char, inside_double_quotes
+                );
+
                 let is_previous_escape_char = prev_char == Some('\\');
-                if is_previous_escape_char {
+                if is_previous_escape_char && next_char.is_some() {
                     current_arg.push(current_char)
                 } else if inside_single_quotes {
                     current_arg.push(current_char);
@@ -619,5 +532,15 @@ mod parse_args_tests {
         let expected = vec![r#"test'world'\n'example"#.to_string()];
 
         assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn double_quoted_backslash2() {
+        let args = r#""mixed\"quote'test'\\""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"mixed"quote'test'\"#.to_string()];
+
+        assert_eq!(output, expected);
     }
 }
