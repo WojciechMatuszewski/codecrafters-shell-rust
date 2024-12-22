@@ -330,13 +330,12 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '"' => {
-                // println!(
-                //     "index={}, prev_char={:?}, next_char={:?}, is_within_double_quotes={}",
-                //     index, prev_char, next_char, inside_double_quotes
-                // );
+                if inside_double_quotes && next_char.is_none() {
+                    continue;
+                }
 
                 let is_previous_escape_char = prev_char == Some('\\');
-                if is_previous_escape_char && next_char.is_some() {
+                if is_previous_escape_char {
                     current_arg.push(current_char)
                 } else if inside_single_quotes {
                     current_arg.push(current_char);
@@ -542,5 +541,15 @@ mod parse_args_tests {
         let expected = vec![r#"mixed"quote'test'\"#.to_string()];
 
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn foo() {
+        let args = r#""example\"insidequotes"script\""#;
+
+        let output = parse_args(args);
+        let expected = vec![r#"example"insidequotesscript""#.to_string()];
+
+        assert_eq!(output, expected)
     }
 }
