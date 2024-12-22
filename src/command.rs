@@ -330,10 +330,10 @@ fn parse_args(args: &str) -> Vec<String> {
                 }
             }
             '"' => {
-                println!(
-                    "index={}, prev_char={:?}, next_char={:?}, is_within_double_quotes={}",
-                    index, prev_char, next_char, inside_double_quotes
-                );
+                // println!(
+                //     "index={}, prev_char={:?}, next_char={:?}, is_within_double_quotes={}",
+                //     index, prev_char, next_char, inside_double_quotes
+                // );
 
                 let is_previous_escape_char = prev_char == Some('\\');
                 if is_previous_escape_char && next_char.is_some() {
