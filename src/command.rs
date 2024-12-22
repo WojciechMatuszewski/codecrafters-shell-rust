@@ -93,11 +93,15 @@ impl FromStr for Command {
 }
 
 fn parse_input(input: &str) -> (String, Vec<String>) {
-    let cmd_parts = input.split_once(' ');
-    match cmd_parts {
-        None => return (input.to_string(), vec![]),
-        Some((cmd, args)) => return (cmd.to_string(), parse_args(args)),
-    }
+    let args = parse_args(input);
+
+    let cmd = args.get(0).unwrap().to_owned();
+
+    let cmd_args = args.get(1..).map_or(vec![], |cmd_args| {
+        return cmd_args.to_vec();
+    });
+
+    return (cmd, cmd_args);
 }
 
 #[cfg(test)]
