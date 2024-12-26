@@ -1,10 +1,29 @@
 use std::path::PathBuf;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ExecutableError {
+    #[error("{0}: command not found\n")]
+    CommandNotFound(String),
+
+    #[error("{0}")]
+    CommandFailed(String),
+}
 
 pub trait ExecutableRunner {
-    fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<String> {
-        let result = std::process::Command::new(exec_name).args(args).output()?;
-        let output = String::from_utf8(result.stdout)?;
+    fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<String, ExecutableError> {
+        let result = std::process::Command::new(exec_name)
+            .args(args)
+            .output()
+            .map_err(|_| return ExecutableError::CommandNotFound(exec_name.to_string()))?;
 
+        if !result.status.success() {
+            let error = String::from_utf8_lossy(&result.stderr).to_string();
+            return Err(ExecutableError::CommandFailed(error));
+        }
+
+        let output = String::from_utf8(result.stdout)
+            .map_err(|error| return ExecutableError::CommandFailed(error.to_string()))?;
         return Ok(output);
     }
 }

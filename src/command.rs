@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 
 use crate::{
-    executable::{ExecutablePathFinder, ExecutableRunner},
+    executable::{ExecutableError, ExecutablePathFinder, ExecutableRunner},
     prompt::Prompter,
 };
 
@@ -32,7 +32,7 @@ impl FromStr for Command {
     type Err = anyhow::Error;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (cmd, args) = parse_input(input);
+        let (cmd, args) = parse_input(input)?;
 
         let cmd = cmd.trim();
         match cmd {
@@ -92,16 +92,19 @@ impl FromStr for Command {
     }
 }
 
-fn parse_input(input: &str) -> (String, Vec<String>) {
+fn parse_input(input: &str) -> anyhow::Result<(String, Vec<String>)> {
     let args = parse_args(input);
 
-    let cmd = args.get(0).unwrap().to_owned();
+    let cmd = args
+        .get(0)
+        .ok_or_else(|| anyhow!("Failed to parse the input"))?
+        .to_owned();
 
     let cmd_args = args.get(1..).map_or(vec![], |cmd_args| {
         return cmd_args.to_vec();
     });
 
-    return (cmd, cmd_args);
+    return anyhow::Ok((cmd, cmd_args));
 }
 
 #[cfg(test)]
@@ -276,13 +279,12 @@ fn run_unknown_command(
     let args = args.as_slice();
 
     let output = runner.execute(&cmd, args);
-
-    if let Ok(result) = output {
-        return prompter.prompt(&result);
+    match output {
+        Ok(result) => return prompter.prompt(&result),
+        Err(error) => {
+            return prompter.prompt(&error.to_string());
+        }
     }
-
-    let prompt = format!("{}: command not found\n", cmd);
-    return prompter.prompt(&prompt);
 }
 
 fn parse_args(args: &str) -> Vec<String> {
@@ -548,7 +550,7 @@ mod parse_args_tests {
     }
 
     #[test]
-    fn foo() {
+    fn double_quoted_backslash3() {
         let args = r#""example\"insidequotes"script\""#;
 
         let output = parse_args(args);
