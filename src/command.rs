@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 
 use crate::{
-    executable::{ExecutableError, ExecutablePathFinder, ExecutableRunner},
+    executable::{ExecutablePathFinder, ExecutableRunner},
     prompt::Prompter,
 };
 
