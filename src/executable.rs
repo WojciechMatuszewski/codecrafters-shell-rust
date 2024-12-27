@@ -12,10 +12,12 @@ pub enum ExecutableError {
 
 pub trait ExecutableRunner {
     fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<String, ExecutableError> {
-        let result = std::process::Command::new(exec_name)
-            .args(args)
+        let cmd = format!("{} {}", exec_name, args.join(" "));
+        let result = std::process::Command::new("bash")
+            .arg("-c")
+            .arg(cmd)
             .output()
-            .map_err(|_| return ExecutableError::CommandNotFound(exec_name.to_string()))?;
+            .map_err(|_| return ExecutableError::CommandNotFound("bash".to_string()))?;
 
         if !result.status.success() {
             let error = String::from_utf8_lossy(&result.stderr).to_string();

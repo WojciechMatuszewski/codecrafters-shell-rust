@@ -261,7 +261,6 @@ impl Command {
 
 fn run_builtin_command(
     command: BuiltinCommand,
-    // prompter: &mut impl Prompter,
     finder: &impl ExecutablePathFinder,
 ) -> anyhow::Result<String> {
     match command {
@@ -344,13 +343,24 @@ fn parse_input(input: &str) -> anyhow::Result<Command> {
     let split_index = args.iter().position(|arg| arg == ">" || arg == "1>");
     match split_index {
         Some(index) => {
-            let first_part = CommandKind::new(args[..index].to_vec())?;
-            let second_part = Redirection::new(args[index..].to_vec())?;
+            let cmd = CommandKind::new(args[..index].to_vec())?;
+            let redirection = Redirection::new(args[index..].to_vec())?;
 
-            return Ok(Command {
-                kind: first_part,
-                redirection: Some(second_part),
-            });
+            match cmd {
+                CommandKind::Builtin(builtin_command) => {
+                    return Ok(Command {
+                        kind: CommandKind::Builtin(builtin_command),
+                        redirection: Some(redirection),
+                    });
+                }
+                CommandKind::Unknown { cmd: _, args: _ } => {
+                    let new_cmd = CommandKind::new(args)?;
+                    return Ok(Command {
+                        kind: new_cmd,
+                        redirection: None,
+                    });
+                }
+            }
         }
         None => {
             let cmd = CommandKind::new(args)?;
