@@ -229,16 +229,33 @@ impl Command {
         runner: &impl ExecutableRunner,
     ) -> anyhow::Result<()> {
         let output = match self.kind {
-            CommandKind::Builtin(builtin_command) => run_builtin_command(builtin_command, finder)?,
-            CommandKind::Unknown { cmd, args } => run_unknown_command(runner, cmd, args)?,
+            CommandKind::Builtin(builtin_command) => {
+                match run_builtin_command(builtin_command, finder) {
+                    Ok(output) => Some(output),
+                    Err(e) => {
+                        prompter.prompt(&e.to_string())?;
+                        None
+                    }
+                }
+            }
+            CommandKind::Unknown { cmd, args } => match run_unknown_command(runner, cmd, args) {
+                Ok(output) => Some(output),
+                Err(e) => {
+                    prompter.prompt(&e.to_string())?;
+                    None
+                }
+            },
         };
-        if let Some(redirection) = self.redirection {
-            redirection.execute(&output)?;
-        } else {
-            prompter.prompt(&output)?;
+
+        if let Some(output) = output {
+            if let Some(redirection) = self.redirection {
+                redirection.execute(&output)?;
+            } else {
+                prompter.prompt(&output)?;
+            }
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
