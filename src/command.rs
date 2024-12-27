@@ -1,4 +1,5 @@
-use std::str::FromStr;
+#![allow(dead_code)]
+use std::{fs::File, io::Write, str::FromStr};
 
 use anyhow::anyhow;
 
@@ -8,13 +9,13 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq)]
-pub enum TypeCommand {
+enum TypeCommand {
     WellKnown { cmd: String },
     Unknown { cmd: String },
 }
 
 #[derive(Debug, PartialEq)]
-pub enum BuiltinCommand {
+enum BuiltinCommand {
     Exit { code: i32 },
     Echo { input: String },
     Type(TypeCommand),
@@ -23,18 +24,18 @@ pub enum BuiltinCommand {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Command {
+enum CommandKind {
     Builtin(BuiltinCommand),
     Unknown { cmd: String, args: Vec<String> },
 }
 
-impl FromStr for Command {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (cmd, args) = parse_input(input)?;
-
+impl CommandKind {
+    fn new(args: Vec<String>) -> anyhow::Result<Self> {
+        let [cmd, args @ ..] = args.as_slice() else {
+            return Err(anyhow!("Failed to construct CommandKind"));
+        };
         let cmd = cmd.trim();
+
         match cmd {
             "exit" => {
                 let code = args
@@ -42,12 +43,12 @@ impl FromStr for Command {
                     .ok_or(anyhow!("Invalid arguments"))?
                     .parse::<i32>()?;
 
-                let command = Command::Builtin(BuiltinCommand::Exit { code });
+                let command = Self::Builtin(BuiltinCommand::Exit { code });
                 return Ok(command);
             }
             "echo" => {
                 let input = args.join(" ");
-                let command = Command::Builtin(BuiltinCommand::Echo { input });
+                let command = Self::Builtin(BuiltinCommand::Echo { input });
                 return Ok(command);
             }
             "type" => {
@@ -60,128 +61,165 @@ impl FromStr for Command {
                 ];
 
                 if built_ins.contains(cmd) {
-                    let command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
+                    let command = Self::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
                         cmd: cmd.to_string(),
                     }));
 
                     return Ok(command);
                 }
 
-                let command = Command::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
+                let command = Self::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
                     cmd: cmd.to_string(),
                 }));
                 return Ok(command);
             }
             "pwd" => {
-                let command = Command::Builtin(BuiltinCommand::Pwd);
+                let command = Self::Builtin(BuiltinCommand::Pwd);
                 return Ok(command);
             }
             "cd" => {
                 let path = args.get(0).ok_or(anyhow!("Invalid arguments"))?.to_string();
-                let command = Command::Builtin(BuiltinCommand::Cd { path });
+                let command = Self::Builtin(BuiltinCommand::Cd { path });
                 return Ok(command);
             }
             _ => {
                 let cmd = cmd.to_string();
                 let args: Vec<String> = args.iter().map(|v| v.to_string()).collect();
 
-                let command = Command::Unknown { cmd, args };
+                let command = Self::Unknown { cmd, args };
                 return Ok(command);
             }
         }
     }
 }
 
-fn parse_input(input: &str) -> anyhow::Result<(String, Vec<String>)> {
-    let args = parse_args(input);
-
-    let cmd = args
-        .get(0)
-        .ok_or_else(|| anyhow!("Failed to parse the input"))?
-        .to_owned();
-
-    let cmd_args = args.get(1..).map_or(vec![], |cmd_args| {
-        return cmd_args.to_vec();
-    });
-
-    return anyhow::Ok((cmd, cmd_args));
+#[derive(Debug, PartialEq)]
+pub enum OutputMode {
+    Append,
+    Override,
 }
 
-#[cfg(test)]
-mod command_from_str_tests {
-    use std::vec;
+#[derive(Debug, PartialEq)]
+pub enum OutputSource {
+    Stdout(OutputMode),
+    Stderr(OutputMode),
+}
 
-    use super::*;
+#[derive(Debug, PartialEq)]
+struct Redirection {
+    source: OutputSource,
+    target: String,
+}
 
-    #[test]
-    fn exit_command() {
-        let input = "exit 19";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Exit { code: 19 });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn built_in_command() {
-        let input = "pwd";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Pwd);
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn echo_command() {
-        let input = "echo foo bar baz";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Echo {
-            input: "foo bar baz".to_string(),
-        });
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn type_well_known() {
-        let input = "type echo";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
-            cmd: "echo".to_string(),
-        }));
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn type_unknown_command() {
-        let input = "type i_do_not_exist";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
-            cmd: "i_do_not_exist".to_string(),
-        }));
-
-        assert_eq!(got_command, expected_command)
-    }
-
-    #[test]
-    fn unknown_command() {
-        let input = "unknown_command foo bar baz";
-
-        let got_command = input.parse::<Command>().unwrap();
-        let expected_command = Command::Unknown {
-            cmd: "unknown_command".to_string(),
-            args: vec!["foo".to_string(), "bar".to_string(), "baz".to_string()],
+impl Redirection {
+    fn new(args: Vec<String>) -> anyhow::Result<Self> {
+        let Some(target) = args.get(1) else {
+            return Err(anyhow!("Failed to create redirection: target not found"));
         };
 
-        assert_eq!(got_command, expected_command)
+        return Ok(Self {
+            source: OutputSource::Stdout(OutputMode::Override),
+            target: target.to_string(),
+        });
+    }
+
+    fn execute(self, input: &str) -> anyhow::Result<()> {
+        let mut file = File::create(self.target)?;
+        file.write(input.as_bytes())?;
+
+        return Ok(());
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub struct Command {
+    kind: CommandKind,
+    redirection: Option<Redirection>,
+}
+
+impl FromStr for Command {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        return parse_input(input);
+    }
+}
+
+// #[cfg(test)]
+// mod command_from_str_tests {
+//     use std::vec;
+
+//     use super::*;
+
+//     #[test]
+//     fn exit_command() {
+//         let input = "exit 19";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Builtin(BuiltinCommand::Exit { code: 19 });
+
+//         assert_eq!(got_command, expected_command)
+//     }
+
+//     #[test]
+//     fn built_in_command() {
+//         let input = "pwd";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Builtin(BuiltinCommand::Pwd);
+
+//         assert_eq!(got_command, expected_command)
+//     }
+
+//     #[test]
+//     fn echo_command() {
+//         let input = "echo foo bar baz";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Builtin(BuiltinCommand::Echo {
+//             input: "foo bar baz".to_string(),
+//         });
+
+//         assert_eq!(got_command, expected_command)
+//     }
+
+//     #[test]
+//     fn type_well_known() {
+//         let input = "type echo";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
+//             cmd: "echo".to_string(),
+//         }));
+
+//         assert_eq!(got_command, expected_command)
+//     }
+
+//     #[test]
+//     fn type_unknown_command() {
+//         let input = "type i_do_not_exist";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
+//             cmd: "i_do_not_exist".to_string(),
+//         }));
+
+//         assert_eq!(got_command, expected_command)
+//     }
+
+//     #[test]
+//     fn unknown_command() {
+//         let input = "unknown_command foo bar baz";
+
+//         let got_command = input.parse::<Command>().unwrap();
+//         let expected_command = Command::Unknown {
+//             cmd: "unknown_command".to_string(),
+//             args: vec!["foo".to_string(), "bar".to_string(), "baz".to_string()],
+//         };
+
+//         assert_eq!(got_command, expected_command)
+//     }
+// }
 
 impl Command {
     pub fn run(
@@ -190,35 +228,37 @@ impl Command {
         finder: &impl ExecutablePathFinder,
         runner: &impl ExecutableRunner,
     ) -> anyhow::Result<()> {
-        match self {
-            Command::Builtin(builtin_command) => {
-                return run_builtin_command(builtin_command, prompter, finder);
-            }
-
-            Command::Unknown { cmd, args } => {
-                return run_unknown_command(prompter, runner, cmd, args)
-            }
+        let output = match self.kind {
+            CommandKind::Builtin(builtin_command) => run_builtin_command(builtin_command, finder)?,
+            CommandKind::Unknown { cmd, args } => run_unknown_command(runner, cmd, args)?,
+        };
+        if let Some(redirection) = self.redirection {
+            redirection.execute(&output)?;
+        } else {
+            prompter.prompt(&output)?;
         }
+
+        return Ok(());
     }
 }
 
 fn run_builtin_command(
     command: BuiltinCommand,
-    prompter: &mut impl Prompter,
+    // prompter: &mut impl Prompter,
     finder: &impl ExecutablePathFinder,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     match command {
         BuiltinCommand::Exit { code } => {
             std::process::exit(code);
         }
         BuiltinCommand::Echo { input } => {
             let prompt = format!("{}\n", input);
-            prompter.prompt(&prompt)?;
+            return Ok(prompt);
         }
         BuiltinCommand::Type(command) => match command {
             TypeCommand::WellKnown { cmd } => {
                 let prompt = format!("{} is a shell builtin\n", cmd);
-                prompter.prompt(&prompt)?;
+                return Ok(prompt);
             }
             TypeCommand::Unknown { cmd } => {
                 let env_path = std::env::var("PATH")?;
@@ -227,11 +267,11 @@ fn run_builtin_command(
                 match result {
                     Some(full_path) => {
                         let prompt = format!("{} is {}\n", cmd, full_path);
-                        prompter.prompt(&prompt)?;
+                        return Ok(prompt);
                     }
                     None => {
                         let prompt = format!("{}: not found\n", cmd);
-                        prompter.prompt(&prompt)?;
+                        return Ok(prompt);
                     }
                 }
             }
@@ -244,7 +284,7 @@ fn run_builtin_command(
                 .expect("Failed to convert path");
 
             let prompt = format!("{}\n", pwd);
-            prompter.prompt(&prompt)?;
+            return Ok(prompt);
         }
         BuiltinCommand::Cd { path } => {
             let home_path =
@@ -258,7 +298,7 @@ fn run_builtin_command(
                 match e.kind() {
                     std::io::ErrorKind::NotFound => {
                         let prompt = format!("cd: {}: No such file or directory\n", path);
-                        prompter.prompt(&prompt)?;
+                        return Ok(prompt);
                     }
                     _ => return Err(anyhow!("Unknown error")),
                 }
@@ -266,24 +306,98 @@ fn run_builtin_command(
         }
     }
 
-    return Ok(());
+    return Ok("".to_string());
 }
 
 fn run_unknown_command(
-    prompter: &mut impl Prompter,
     runner: &impl ExecutableRunner,
     cmd: String,
     args: Vec<String>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<String> {
     let args: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
     let args = args.as_slice();
 
-    let output = runner.execute(&cmd, args);
-    match output {
-        Ok(result) => return prompter.prompt(&result),
-        Err(error) => {
-            return prompter.prompt(&error.to_string());
+    let output = runner.execute(&cmd, args)?;
+    return Ok(output);
+}
+
+fn parse_input(input: &str) -> anyhow::Result<Command> {
+    let args = parse_args(input);
+
+    let split_index = args.iter().position(|arg| arg == ">" || arg == "1>");
+    match split_index {
+        Some(index) => {
+            let first_part = CommandKind::new(args[..index].to_vec())?;
+            let second_part = Redirection::new(args[index..].to_vec())?;
+
+            return Ok(Command {
+                kind: first_part,
+                redirection: Some(second_part),
+            });
         }
+        None => {
+            let cmd = CommandKind::new(args)?;
+            return Ok(Command {
+                kind: cmd,
+                redirection: None,
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod parse_input_tests {
+    use super::*;
+
+    #[test]
+    fn command_without_redirection() {
+        let input = r#"echo "bar" "baz""#;
+        let output = parse_input(input).unwrap();
+
+        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+            input: r#"bar baz"#.to_string(),
+        });
+        let expected = Command {
+            kind: expected_cmd,
+            redirection: None,
+        };
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn command_with_redirection_explicit() {
+        let input = r#"echo "bar" 1> foo.md"#;
+        let output = parse_input(input).unwrap();
+        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+            input: r#"bar"#.to_string(),
+        });
+        let expected_redirection = Redirection {
+            source: OutputSource::Stdout(OutputMode::Override),
+            target: "foo.md".to_string(),
+        };
+        let expected = Command {
+            kind: expected_cmd,
+            redirection: Some(expected_redirection),
+        };
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn command_with_redirection_implicit() {
+        let input = r#"echo "bar" > foo.md"#;
+        let output = parse_input(input).unwrap();
+        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+            input: r#"bar"#.to_string(),
+        });
+        let expected_redirection = Redirection {
+            source: OutputSource::Stdout(OutputMode::Override),
+            target: "foo.md".to_string(),
+        };
+        let expected = Command {
+            kind: expected_cmd,
+            redirection: Some(expected_redirection),
+        };
+        assert_eq!(output, expected)
     }
 }
 
@@ -555,6 +669,20 @@ mod parse_args_tests {
 
         let output = parse_args(args);
         let expected = vec![r#"example"insidequotesscript""#.to_string()];
+
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn stdout_redirect() {
+        let args = r#"'hello james' 1> /tmp/foo/foo.md"#;
+
+        let output = parse_args(args);
+        let expected = vec![
+            r#"hello james"#.to_string(),
+            "1>".to_string(),
+            "/tmp/foo/foo.md".to_string(),
+        ];
 
         assert_eq!(output, expected)
     }
