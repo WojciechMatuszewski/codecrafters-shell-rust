@@ -231,6 +231,7 @@ impl Command {
                             }
                             redirection::OutputSource::Stderr(_) => {
                                 redirection.execute(&stdout, &stderr)?;
+                                prompter.prompt(&stdout)?;
                                 return Ok(());
                             }
                         }
