@@ -1,11 +1,10 @@
-#![allow(dead_code)]
-use std::{fs::File, io::Write, str::FromStr};
-
 use anyhow::anyhow;
+use std::str::FromStr;
 
 use crate::{
     executable::{ExecutablePathFinder, ExecutableRunner},
     prompt::Prompter,
+    redirection::Redirection,
 };
 
 #[derive(Debug, PartialEq)]
@@ -27,6 +26,12 @@ enum BuiltinCommand {
 enum CommandKind {
     Builtin(BuiltinCommand),
     Unknown { cmd: String, args: Vec<String> },
+}
+
+#[derive(Debug)]
+struct CommandOutput {
+    stdout: Option<String>,
+    stderr: Option<String>,
 }
 
 impl CommandKind {
@@ -90,44 +95,6 @@ impl CommandKind {
                 return Ok(command);
             }
         }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum OutputMode {
-    Append,
-    Override,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum OutputSource {
-    Stdout(OutputMode),
-    Stderr(OutputMode),
-}
-
-#[derive(Debug, PartialEq)]
-struct Redirection {
-    source: OutputSource,
-    target: String,
-}
-
-impl Redirection {
-    fn new(args: Vec<String>) -> anyhow::Result<Self> {
-        let Some(target) = args.get(1) else {
-            return Err(anyhow!("Failed to create redirection: target not found"));
-        };
-
-        return Ok(Self {
-            source: OutputSource::Stdout(OutputMode::Override),
-            target: target.to_string(),
-        });
-    }
-
-    fn execute(self, input: &str) -> anyhow::Result<()> {
-        let mut file = File::create(self.target)?;
-        file.write(input.as_bytes())?;
-
-        return Ok(());
     }
 }
 
@@ -247,34 +214,65 @@ impl Command {
             },
         };
 
-        if let Some(output) = output {
-            if let Some(redirection) = self.redirection {
-                redirection.execute(&output)?;
-            } else {
-                prompter.prompt(&output)?;
-            }
+        match output {
+            Some(cmd_output) => match cmd_output {
+                CommandOutput {
+                    stdout: Some(stdout),
+                    stderr: Some(stderr),
+                } => {
+                    if let Some(redirection) = self.redirection {
+                        redirection.execute(&stdout)?;
+                        return Ok(());
+                    } else {
+                        prompter.prompt(&stderr)?;
+                        return Ok(());
+                    }
+                }
+                CommandOutput {
+                    stdout: Some(stdout),
+                    stderr: None,
+                } => {
+                    if let Some(redirection) = self.redirection {
+                        redirection.execute(&stdout)?;
+                        return Ok(());
+                    } else {
+                        return Ok(());
+                    }
+                }
+                CommandOutput {
+                    stdout: None,
+                    stderr: Some(stderr),
+                } => {
+                    prompter.prompt(&stderr)?;
+                    return Ok(());
+                }
+                _ => return Ok(()),
+            },
+            None => return Ok(()),
         }
-
-        Ok(())
     }
 }
 
 fn run_builtin_command(
     command: BuiltinCommand,
     finder: &impl ExecutablePathFinder,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<CommandOutput> {
     match command {
         BuiltinCommand::Exit { code } => {
             std::process::exit(code);
         }
         BuiltinCommand::Echo { input } => {
-            let prompt = format!("{}\n", input);
-            return Ok(prompt);
+            return Ok(CommandOutput {
+                stdout: Some(format!("{}\n", input)),
+                stderr: None,
+            });
         }
         BuiltinCommand::Type(command) => match command {
             TypeCommand::WellKnown { cmd } => {
-                let prompt = format!("{} is a shell builtin\n", cmd);
-                return Ok(prompt);
+                return Ok(CommandOutput {
+                    stdout: Some(format!("{} is a shell builtin\n", cmd)),
+                    stderr: None,
+                })
             }
             TypeCommand::Unknown { cmd } => {
                 let env_path = std::env::var("PATH")?;
@@ -282,12 +280,16 @@ fn run_builtin_command(
 
                 match result {
                     Some(full_path) => {
-                        let prompt = format!("{} is {}\n", cmd, full_path);
-                        return Ok(prompt);
+                        return Ok(CommandOutput {
+                            stdout: Some(format!("{} is {}\n", cmd, full_path)),
+                            stderr: None,
+                        });
                     }
                     None => {
-                        let prompt = format!("{}: not found\n", cmd);
-                        return Ok(prompt);
+                        return Ok(CommandOutput {
+                            stdout: None,
+                            stderr: Some(format!("{}: not found\n", cmd)),
+                        });
                     }
                 }
             }
@@ -299,8 +301,10 @@ fn run_builtin_command(
                 .into_string()
                 .expect("Failed to convert path");
 
-            let prompt = format!("{}\n", pwd);
-            return Ok(prompt);
+            return Ok(CommandOutput {
+                stdout: Some(format!("{}\n", pwd)),
+                stderr: None,
+            });
         }
         BuiltinCommand::Cd { path } => {
             let home_path =
@@ -313,28 +317,36 @@ fn run_builtin_command(
             if let Err(e) = result {
                 match e.kind() {
                     std::io::ErrorKind::NotFound => {
-                        let prompt = format!("cd: {}: No such file or directory\n", path);
-                        return Ok(prompt);
+                        return Ok(CommandOutput {
+                            stdout: None,
+                            stderr: Some(format!("cd: {}: No such file or directory\n", path)),
+                        });
                     }
                     _ => return Err(anyhow!("Unknown error")),
                 }
             };
+
+            return Ok(CommandOutput {
+                stdout: None,
+                stderr: None,
+            });
         }
     }
-
-    return Ok("".to_string());
 }
 
 fn run_unknown_command(
     runner: &impl ExecutableRunner,
     cmd: String,
     args: Vec<String>,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<CommandOutput> {
     let args: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
     let args = args.as_slice();
 
     let output = runner.execute(&cmd, args)?;
-    return Ok(output);
+    return Ok(CommandOutput {
+        stdout: output.stdout,
+        stderr: output.stderr,
+    });
 }
 
 fn parse_input(input: &str) -> anyhow::Result<Command> {
@@ -346,21 +358,10 @@ fn parse_input(input: &str) -> anyhow::Result<Command> {
             let cmd = CommandKind::new(args[..index].to_vec())?;
             let redirection = Redirection::new(args[index..].to_vec())?;
 
-            match cmd {
-                CommandKind::Builtin(builtin_command) => {
-                    return Ok(Command {
-                        kind: CommandKind::Builtin(builtin_command),
-                        redirection: Some(redirection),
-                    });
-                }
-                CommandKind::Unknown { cmd: _, args: _ } => {
-                    let new_cmd = CommandKind::new(args)?;
-                    return Ok(Command {
-                        kind: new_cmd,
-                        redirection: None,
-                    });
-                }
-            }
+            return Ok(Command {
+                kind: cmd,
+                redirection: Some(redirection),
+            });
         }
         None => {
             let cmd = CommandKind::new(args)?;
@@ -374,6 +375,8 @@ fn parse_input(input: &str) -> anyhow::Result<Command> {
 
 #[cfg(test)]
 mod parse_input_tests {
+    use crate::redirection::{OutputMode, OutputSource};
+
     use super::*;
 
     #[test]

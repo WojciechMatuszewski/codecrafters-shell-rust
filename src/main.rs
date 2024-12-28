@@ -1,4 +1,5 @@
 #![allow(deprecated)]
+#![allow(dead_code)]
 
 use std::io;
 
@@ -9,6 +10,7 @@ use prompt::{ConsolePrompter, Prompter};
 mod command;
 mod executable;
 mod prompt;
+mod redirection;
 
 fn main() -> anyhow::Result<()> {
     let reader = io::stdin().lock();

@@ -10,22 +10,37 @@ pub enum ExecutableError {
     CommandFailed(String),
 }
 
-pub trait ExecutableRunner {
-    fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<String, ExecutableError> {
-        let cmd = format!("{} {}", exec_name, args.join(" "));
-        let result = std::process::Command::new("bash")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .map_err(|_| return ExecutableError::CommandNotFound("bash".to_string()))?;
+pub struct ExecutableOutput {
+    pub stdout: Option<String>,
+    pub stderr: Option<String>,
+}
 
-        if !result.status.success() {
-            let error = String::from_utf8_lossy(&result.stderr).to_string();
-            return Err(ExecutableError::CommandFailed(error));
+pub trait ExecutableRunner {
+    fn execute(
+        &self,
+        exec_name: &str,
+        args: &[&str],
+    ) -> anyhow::Result<ExecutableOutput, ExecutableError> {
+        let result = std::process::Command::new(exec_name)
+            .args(args)
+            .output()
+            .map_err(|_| return ExecutableError::CommandNotFound(exec_name.to_string()))?;
+
+        let mut output = ExecutableOutput {
+            stdout: None,
+            stderr: None,
+        };
+
+        let stderr = String::from_utf8_lossy(&result.stderr).to_string();
+        if !stderr.is_empty() {
+            output.stderr = Some(stderr)
         }
 
-        let output = String::from_utf8(result.stdout)
-            .map_err(|error| return ExecutableError::CommandFailed(error.to_string()))?;
+        let stdout = String::from_utf8_lossy(&result.stdout).to_string();
+        if !stdout.is_empty() {
+            output.stdout = Some(stdout)
+        }
+
         return Ok(output);
     }
 }
