@@ -29,7 +29,7 @@ enum CommandKind {
 }
 
 #[derive(Debug)]
-struct CommandOutput {
+pub struct CommandOutput {
     stdout: Option<String>,
     stderr: Option<String>,
 }
@@ -200,6 +200,7 @@ impl Command {
                 match run_builtin_command(builtin_command, finder) {
                     Ok(output) => Some(output),
                     Err(e) => {
+                        println!("Command error");
                         prompter.prompt(&e.to_string())?;
                         None
                     }
@@ -208,6 +209,7 @@ impl Command {
             CommandKind::Unknown { cmd, args } => match run_unknown_command(runner, cmd, args) {
                 Ok(output) => Some(output),
                 Err(e) => {
+                    println!("Command error");
                     prompter.prompt(&e.to_string())?;
                     None
                 }
@@ -221,11 +223,13 @@ impl Command {
                     stderr: Some(stderr),
                 } => {
                     if let Some(redirection) = self.redirection {
-                        redirection.execute(&stdout)?;
+                        redirection.execute(&stdout, &stderr)?;
                         prompter.prompt(&stderr)?;
+
                         return Ok(());
                     } else {
                         prompter.prompt(&stderr)?;
+
                         return Ok(());
                     }
                 }
@@ -234,10 +238,12 @@ impl Command {
                     stderr: None,
                 } => {
                     if let Some(redirection) = self.redirection {
-                        redirection.execute(&stdout)?;
+                        redirection.execute(&stdout, "")?;
+
                         return Ok(());
                     } else {
                         prompter.prompt(&stdout)?;
+
                         return Ok(());
                     }
                 }
@@ -245,8 +251,16 @@ impl Command {
                     stdout: None,
                     stderr: Some(stderr),
                 } => {
-                    prompter.prompt(&stderr)?;
-                    return Ok(());
+                    if let Some(redirection) = self.redirection {
+                        redirection.execute("", &stderr)?;
+                        prompter.prompt(&stderr)?;
+
+                        return Ok(());
+                    } else {
+                        prompter.prompt(&stderr)?;
+
+                        return Ok(());
+                    }
                 }
                 _ => return Ok(()),
             },
@@ -354,7 +368,9 @@ fn run_unknown_command(
 fn parse_input(input: &str) -> anyhow::Result<Command> {
     let args = parse_args(input);
 
-    let split_index = args.iter().position(|arg| arg == ">" || arg == "1>");
+    let split_index = args.iter().position(|arg| {
+        arg == ">" || arg == "1>" || arg == "2>" || arg == ">>" || arg == "1>>" || arg == "2>>"
+    });
     match split_index {
         Some(index) => {
             let cmd = CommandKind::new(args[..index].to_vec())?;
@@ -397,7 +413,7 @@ mod parse_input_tests {
     }
 
     #[test]
-    fn command_with_redirection_explicit() {
+    fn command_width_stdout_redirection_explicit() {
         let input = r#"echo "bar" 1> foo.md"#;
         let output = parse_input(input).unwrap();
         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
@@ -415,7 +431,7 @@ mod parse_input_tests {
     }
 
     #[test]
-    fn command_with_redirection_implicit() {
+    fn command_width_stdout_redirection_implicit() {
         let input = r#"echo "bar" > foo.md"#;
         let output = parse_input(input).unwrap();
         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
@@ -423,6 +439,24 @@ mod parse_input_tests {
         });
         let expected_redirection = Redirection {
             source: OutputSource::Stdout(OutputMode::Override),
+            target: "foo.md".to_string(),
+        };
+        let expected = Command {
+            kind: expected_cmd,
+            redirection: Some(expected_redirection),
+        };
+        assert_eq!(output, expected)
+    }
+
+    #[test]
+    fn command_width_stderr_redirection() {
+        let input = r#"echo "bar" 2> foo.md"#;
+        let output = parse_input(input).unwrap();
+        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+            input: r#"bar"#.to_string(),
+        });
+        let expected_redirection = Redirection {
+            source: OutputSource::Stderr(OutputMode::Override),
             target: "foo.md".to_string(),
         };
         let expected = Command {
