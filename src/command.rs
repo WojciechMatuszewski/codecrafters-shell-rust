@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::{
     executable::{ExecutablePathFinder, ExecutableRunner},
     prompt::Prompter,
-    redirection::Redirection,
+    redirection::{self, Redirection},
 };
 
 #[derive(Debug, PartialEq)]
@@ -223,13 +223,19 @@ impl Command {
                     stderr: Some(stderr),
                 } => {
                     if let Some(redirection) = self.redirection {
-                        redirection.execute(&stdout, &stderr)?;
-                        prompter.prompt(&stderr)?;
-
-                        return Ok(());
+                        match redirection.source {
+                            redirection::OutputSource::Stdout(_) => {
+                                redirection.execute(&stdout, &stderr)?;
+                                prompter.prompt(&stderr)?;
+                                return Ok(());
+                            }
+                            redirection::OutputSource::Stderr(_) => {
+                                redirection.execute(&stdout, &stderr)?;
+                                return Ok(());
+                            }
+                        }
                     } else {
                         prompter.prompt(&stderr)?;
-
                         return Ok(());
                     }
                 }
@@ -238,12 +244,19 @@ impl Command {
                     stderr: None,
                 } => {
                     if let Some(redirection) = self.redirection {
-                        redirection.execute(&stdout, "")?;
-
-                        return Ok(());
+                        match redirection.source {
+                            redirection::OutputSource::Stdout(_) => {
+                                redirection.execute(&stdout, "")?;
+                                return Ok(());
+                            }
+                            redirection::OutputSource::Stderr(_) => {
+                                redirection.execute(&stdout, "")?;
+                                prompter.prompt(&stdout)?;
+                                return Ok(());
+                            }
+                        }
                     } else {
                         prompter.prompt(&stdout)?;
-
                         return Ok(());
                     }
                 }
@@ -252,11 +265,20 @@ impl Command {
                     stderr: Some(stderr),
                 } => {
                     if let Some(redirection) = self.redirection {
-                        redirection.execute("", &stderr)?;
-                        return Ok(());
+                        match redirection.source {
+                            redirection::OutputSource::Stdout(_) => {
+                                redirection.execute("", &stderr)?;
+                                prompter.prompt(&stderr)?;
+                                return Ok(());
+                            }
+                            redirection::OutputSource::Stderr(_) => {
+                                redirection.execute("", &stderr)?;
+                                prompter.prompt(&stderr)?;
+                                return Ok(());
+                            }
+                        }
                     } else {
                         prompter.prompt(&stderr)?;
-
                         return Ok(());
                     }
                 }
