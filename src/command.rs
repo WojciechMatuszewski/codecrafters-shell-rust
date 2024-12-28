@@ -273,7 +273,6 @@ impl Command {
                             }
                             redirection::OutputSource::Stderr(_) => {
                                 redirection.execute("", &stderr)?;
-                                prompter.prompt(&stderr)?;
                                 return Ok(());
                             }
                         }
