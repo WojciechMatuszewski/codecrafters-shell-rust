@@ -253,8 +253,6 @@ impl Command {
                 } => {
                     if let Some(redirection) = self.redirection {
                         redirection.execute("", &stderr)?;
-                        prompter.prompt(&stderr)?;
-
                         return Ok(());
                     } else {
                         prompter.prompt(&stderr)?;
