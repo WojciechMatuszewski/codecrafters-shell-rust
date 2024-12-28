@@ -1,14 +1,4 @@
 use std::path::PathBuf;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum ExecutableError {
-    #[error("{0}: command not found\n")]
-    CommandNotFound(String),
-
-    #[error("{0}")]
-    CommandFailed(String),
-}
 
 #[derive(Debug)]
 pub struct ExecutableOutput {
@@ -17,32 +7,35 @@ pub struct ExecutableOutput {
 }
 
 pub trait ExecutableRunner {
-    fn execute(
-        &self,
-        exec_name: &str,
-        args: &[&str],
-    ) -> anyhow::Result<ExecutableOutput, ExecutableError> {
-        let result = std::process::Command::new(exec_name)
-            .args(args)
-            .output()
-            .map_err(|_| return ExecutableError::CommandNotFound(exec_name.to_string()))?;
+    fn execute(&self, exec_name: &str, args: &[&str]) -> anyhow::Result<ExecutableOutput> {
+        let result = std::process::Command::new(exec_name).args(args).output();
 
-        let mut output = ExecutableOutput {
-            stdout: None,
-            stderr: None,
-        };
+        match result {
+            Ok(result) => {
+                let mut output = ExecutableOutput {
+                    stdout: None,
+                    stderr: None,
+                };
 
-        let stderr = String::from_utf8_lossy(&result.stderr).to_string();
-        if !stderr.is_empty() {
-            output.stderr = Some(stderr)
+                let stderr = String::from_utf8_lossy(&result.stderr).to_string();
+                if !stderr.is_empty() {
+                    output.stderr = Some(stderr)
+                }
+
+                let stdout = String::from_utf8_lossy(&result.stdout).to_string();
+                if !stdout.is_empty() {
+                    output.stdout = Some(stdout)
+                }
+
+                return Ok(output);
+            }
+            Err(_) => {
+                return Ok(ExecutableOutput {
+                    stderr: Some(format!("{}: command not found\n", exec_name)),
+                    stdout: None,
+                })
+            }
         }
-
-        let stdout = String::from_utf8_lossy(&result.stdout).to_string();
-        if !stdout.is_empty() {
-            output.stdout = Some(stdout)
-        }
-
-        return Ok(output);
     }
 }
 
