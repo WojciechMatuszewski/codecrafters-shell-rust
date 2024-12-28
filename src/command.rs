@@ -236,6 +236,7 @@ impl Command {
                         redirection.execute(&stdout)?;
                         return Ok(());
                     } else {
+                        prompter.prompt(&stdout)?;
                         return Ok(());
                     }
                 }

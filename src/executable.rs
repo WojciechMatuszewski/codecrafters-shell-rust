@@ -10,6 +10,7 @@ pub enum ExecutableError {
     CommandFailed(String),
 }
 
+#[derive(Debug)]
 pub struct ExecutableOutput {
     pub stdout: Option<String>,
     pub stderr: Option<String>,
