@@ -22,7 +22,7 @@ pub enum Source {
 #[derive(Debug, PartialEq)]
 pub struct Redirection {
     pub source: Source,
-    pub target: String,
+    pub target: PathBuf,
 }
 
 const STDOUT_OVERRIDE: &[&str] = &[">", "1>"];
@@ -52,48 +52,9 @@ impl Redirection {
 
         return Ok(Self {
             source: output_source,
-            target: target.to_string(),
+            target: PathBuf::from(target),
         });
     }
-
-    // pub fn execute(self, stdout: &str, stderr: &str) -> anyhow::Result<()> {
-    //     match self.source {
-    //         Source::Stdout(output_mode) => match output_mode {
-    //             OutputMode::Append => {
-    //                 let mut file = OpenOptions::new()
-    //                     .append(true)
-    //                     .create(true)
-    //                     .open(self.target)?;
-    //                 file.write(stdout.as_bytes())?;
-
-    //                 return Ok(());
-    //             }
-    //             OutputMode::Override => {
-    //                 let mut file = File::create(self.target)?;
-    //                 file.write(stdout.as_bytes())?;
-
-    //                 return Ok(());
-    //             }
-    //         },
-    //         Source::Stderr(output_mode) => match output_mode {
-    //             OutputMode::Append => {
-    //                 let mut file = OpenOptions::new()
-    //                     .append(true)
-    //                     .create(true)
-    //                     .open(self.target)?;
-    //                 file.write(stderr.as_bytes())?;
-
-    //                 return Ok(());
-    //             }
-    //             OutputMode::Override => {
-    //                 let mut file = File::create(self.target)?;
-    //                 file.write(stderr.as_bytes())?;
-
-    //                 return Ok(());
-    //             }
-    //         },
-    //     }
-    // }
 
     pub fn run(&self, command_output: &CommandOutput) -> anyhow::Result<()> {
         let path = PathBuf::from(&self.target);
@@ -168,5 +129,76 @@ impl Redirection {
         .concat()
         .iter()
         .any(|&redirection_arg| return redirection_arg == arg);
+    }
+}
+
+#[cfg(test)]
+mod redirection_tests {
+    use std::fs;
+
+    use tempfile::NamedTempFile;
+
+    use crate::{
+        command::CommandOutput,
+        redirection::{STDOUT_APPEND, STDOUT_OVERRIDE},
+    };
+
+    use super::Redirection;
+
+    #[test]
+    fn test_stdout_override() -> anyhow::Result<()> {
+        let file = NamedTempFile::new()?;
+        let path = file.path();
+
+        let initial_content = "initial_content";
+        let expected_content = "expected_content";
+
+        fs::write(path, initial_content)?;
+
+        let command_output = CommandOutput {
+            stdout: Some(expected_content.to_string()),
+            stderr: None,
+        };
+
+        let redirection = Redirection::new(vec![
+            STDOUT_OVERRIDE[0].to_string(),
+            path.to_string_lossy().to_string(),
+        ])?;
+        redirection.run(&command_output)?;
+
+        let file_content = fs::read_to_string(path)?;
+        assert_eq!(file_content, expected_content);
+
+        return Ok(());
+    }
+
+    #[test]
+    fn test_stdout_append() -> anyhow::Result<()> {
+        let file = NamedTempFile::new()?;
+        let path = file.path();
+
+        let initial_content = "initial_content";
+        let additional_content = "additional_content";
+
+        fs::write(path, initial_content)?;
+
+        let command_output = CommandOutput {
+            stdout: Some(additional_content.to_string()),
+            stderr: None,
+        };
+
+        let redirection = Redirection::new(vec![
+            STDOUT_APPEND[0].to_string(),
+            path.to_string_lossy().to_string(),
+        ])?;
+        redirection.run(&command_output)?;
+
+        let file_content = fs::read_to_string(path)?;
+        assert_eq!(
+            file_content,
+            format!("{}{}", initial_content, additional_content)
+        );
+
+        return Ok(());
     }
 }
