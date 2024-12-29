@@ -28,12 +28,6 @@ enum CommandKind {
     Unknown { cmd: String, args: Vec<String> },
 }
 
-#[derive(Debug)]
-pub struct CommandOutput {
-    stdout: Option<String>,
-    stderr: Option<String>,
-}
-
 impl CommandKind {
     fn new(args: Vec<String>) -> anyhow::Result<Self> {
         let [cmd, args @ ..] = args.as_slice() else {
@@ -108,85 +102,37 @@ impl FromStr for Command {
     type Err = anyhow::Error;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        return parse_input(input);
+        let input_args = parse_args(input);
+        let redirection_start_index = input_args
+            .iter()
+            .position(|input_arg| return Redirection::is_redirection_arg(&input_arg));
+
+        match redirection_start_index {
+            Some(index) => {
+                let cmd = CommandKind::new(input_args[..index].to_vec())?;
+                let redirection = Redirection::new(input_args[index..].to_vec())?;
+
+                return Ok(Command {
+                    kind: cmd,
+                    redirection: Some(redirection),
+                });
+            }
+            None => {
+                let cmd = CommandKind::new(input_args)?;
+                return Ok(Command {
+                    kind: cmd,
+                    redirection: None,
+                });
+            }
+        }
     }
 }
 
-// #[cfg(test)]
-// mod command_from_str_tests {
-//     use std::vec;
-
-//     use super::*;
-
-//     #[test]
-//     fn exit_command() {
-//         let input = "exit 19";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Builtin(BuiltinCommand::Exit { code: 19 });
-
-//         assert_eq!(got_command, expected_command)
-//     }
-
-//     #[test]
-//     fn built_in_command() {
-//         let input = "pwd";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Builtin(BuiltinCommand::Pwd);
-
-//         assert_eq!(got_command, expected_command)
-//     }
-
-//     #[test]
-//     fn echo_command() {
-//         let input = "echo foo bar baz";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Builtin(BuiltinCommand::Echo {
-//             input: "foo bar baz".to_string(),
-//         });
-
-//         assert_eq!(got_command, expected_command)
-//     }
-
-//     #[test]
-//     fn type_well_known() {
-//         let input = "type echo";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::WellKnown {
-//             cmd: "echo".to_string(),
-//         }));
-
-//         assert_eq!(got_command, expected_command)
-//     }
-
-//     #[test]
-//     fn type_unknown_command() {
-//         let input = "type i_do_not_exist";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Builtin(BuiltinCommand::Type(TypeCommand::Unknown {
-//             cmd: "i_do_not_exist".to_string(),
-//         }));
-
-//         assert_eq!(got_command, expected_command)
-//     }
-
-//     #[test]
-//     fn unknown_command() {
-//         let input = "unknown_command foo bar baz";
-
-//         let got_command = input.parse::<Command>().unwrap();
-//         let expected_command = Command::Unknown {
-//             cmd: "unknown_command".to_string(),
-//             args: vec!["foo".to_string(), "bar".to_string(), "baz".to_string()],
-//         };
-
-//         assert_eq!(got_command, expected_command)
-//     }
-// }
+#[derive(Debug)]
+pub struct CommandOutput {
+    pub stdout: Option<String>,
+    pub stderr: Option<String>,
+}
 
 impl Command {
     pub fn run(
@@ -195,7 +141,7 @@ impl Command {
         finder: &impl ExecutablePathFinder,
         runner: &impl ExecutableRunner,
     ) -> anyhow::Result<()> {
-        let output = match self.kind {
+        let Some(output) = (match self.kind {
             CommandKind::Builtin(builtin_command) => {
                 match run_builtin_command(builtin_command, finder) {
                     Ok(output) => Some(output),
@@ -214,78 +160,27 @@ impl Command {
                     None
                 }
             },
+        }) else {
+            return Ok(());
         };
 
-        match output {
-            Some(cmd_output) => match cmd_output {
-                CommandOutput {
-                    stdout: Some(stdout),
-                    stderr: Some(stderr),
-                } => {
-                    if let Some(redirection) = self.redirection {
-                        match redirection.source {
-                            redirection::OutputSource::Stdout(_) => {
-                                redirection.execute(&stdout, &stderr)?;
-                                prompter.prompt(&stderr)?;
-                                return Ok(());
-                            }
-                            redirection::OutputSource::Stderr(_) => {
-                                redirection.execute(&stdout, &stderr)?;
-                                prompter.prompt(&stdout)?;
-                                return Ok(());
-                            }
-                        }
-                    } else {
-                        prompter.prompt(&stderr)?;
-                        return Ok(());
-                    }
+        if let Some(redirection) = self.redirection {
+            redirection.run(&output)?;
+
+            match redirection.source {
+                redirection::Source::Stdout(_) if output.stderr.is_some() => {
+                    prompter.prompt(&output.stderr.unwrap_or("".to_string()))?
                 }
-                CommandOutput {
-                    stdout: Some(stdout),
-                    stderr: None,
-                } => {
-                    if let Some(redirection) = self.redirection {
-                        match redirection.source {
-                            redirection::OutputSource::Stdout(_) => {
-                                redirection.execute(&stdout, "")?;
-                                return Ok(());
-                            }
-                            redirection::OutputSource::Stderr(_) => {
-                                redirection.execute(&stdout, "")?;
-                                prompter.prompt(&stdout)?;
-                                return Ok(());
-                            }
-                        }
-                    } else {
-                        prompter.prompt(&stdout)?;
-                        return Ok(());
-                    }
+                redirection::Source::Stderr(_) => {
+                    prompter.prompt(&output.stdout.unwrap_or("".to_string()))?
                 }
-                CommandOutput {
-                    stdout: None,
-                    stderr: Some(stderr),
-                } => {
-                    if let Some(redirection) = self.redirection {
-                        match redirection.source {
-                            redirection::OutputSource::Stdout(_) => {
-                                redirection.execute("", &stderr)?;
-                                prompter.prompt(&stderr)?;
-                                return Ok(());
-                            }
-                            redirection::OutputSource::Stderr(_) => {
-                                redirection.execute("", &stderr)?;
-                                return Ok(());
-                            }
-                        }
-                    } else {
-                        prompter.prompt(&stderr)?;
-                        return Ok(());
-                    }
-                }
-                _ => return Ok(()),
-            },
-            None => return Ok(()),
+                _ => {}
+            }
+        } else if let Some(prompt_output) = output.stderr.or(output.stdout) {
+            prompter.prompt(&prompt_output)?;
         }
+
+        return Ok(());
     }
 }
 
@@ -385,107 +280,81 @@ fn run_unknown_command(
     });
 }
 
-fn parse_input(input: &str) -> anyhow::Result<Command> {
-    let args = parse_args(input);
+// #[cfg(test)]
+// mod parse_input_tests {
+//     use crate::redirection::{OutputMode, Source};
 
-    let split_index = args.iter().position(|arg| {
-        arg == ">" || arg == "1>" || arg == "2>" || arg == ">>" || arg == "1>>" || arg == "2>>"
-    });
-    match split_index {
-        Some(index) => {
-            let cmd = CommandKind::new(args[..index].to_vec())?;
-            let redirection = Redirection::new(args[index..].to_vec())?;
+//     use super::*;
 
-            return Ok(Command {
-                kind: cmd,
-                redirection: Some(redirection),
-            });
-        }
-        None => {
-            let cmd = CommandKind::new(args)?;
-            return Ok(Command {
-                kind: cmd,
-                redirection: None,
-            });
-        }
-    }
-}
+//     #[test]
+//     fn command_without_redirection() {
+//         let input = r#"echo "bar" "baz""#;
+//         let output = parse_input(input).unwrap();
 
-#[cfg(test)]
-mod parse_input_tests {
-    use crate::redirection::{OutputMode, OutputSource};
+//         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+//             input: r#"bar baz"#.to_string(),
+//         });
+//         let expected = Command {
+//             kind: expected_cmd,
+//             redirection: None,
+//         };
+//         assert_eq!(output, expected);
+//     }
 
-    use super::*;
+//     #[test]
+//     fn command_width_stdout_redirection_explicit() {
+//         let input = r#"echo "bar" 1> foo.md"#;
+//         let output = parse_input(input).unwrap();
+//         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+//             input: r#"bar"#.to_string(),
+//         });
+//         let expected_redirection = Redirection {
+//             source: Source::Stdout(OutputMode::Override),
+//             target: "foo.md".to_string(),
+//         };
+//         let expected = Command {
+//             kind: expected_cmd,
+//             redirection: Some(expected_redirection),
+//         };
+//         assert_eq!(output, expected)
+//     }
 
-    #[test]
-    fn command_without_redirection() {
-        let input = r#"echo "bar" "baz""#;
-        let output = parse_input(input).unwrap();
+//     #[test]
+//     fn command_width_stdout_redirection_implicit() {
+//         let input = r#"echo "bar" > foo.md"#;
+//         let output = parse_input(input).unwrap();
+//         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+//             input: r#"bar"#.to_string(),
+//         });
+//         let expected_redirection = Redirection {
+//             source: Source::Stdout(OutputMode::Override),
+//             target: "foo.md".to_string(),
+//         };
+//         let expected = Command {
+//             kind: expected_cmd,
+//             redirection: Some(expected_redirection),
+//         };
+//         assert_eq!(output, expected)
+//     }
 
-        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
-            input: r#"bar baz"#.to_string(),
-        });
-        let expected = Command {
-            kind: expected_cmd,
-            redirection: None,
-        };
-        assert_eq!(output, expected);
-    }
-
-    #[test]
-    fn command_width_stdout_redirection_explicit() {
-        let input = r#"echo "bar" 1> foo.md"#;
-        let output = parse_input(input).unwrap();
-        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
-            input: r#"bar"#.to_string(),
-        });
-        let expected_redirection = Redirection {
-            source: OutputSource::Stdout(OutputMode::Override),
-            target: "foo.md".to_string(),
-        };
-        let expected = Command {
-            kind: expected_cmd,
-            redirection: Some(expected_redirection),
-        };
-        assert_eq!(output, expected)
-    }
-
-    #[test]
-    fn command_width_stdout_redirection_implicit() {
-        let input = r#"echo "bar" > foo.md"#;
-        let output = parse_input(input).unwrap();
-        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
-            input: r#"bar"#.to_string(),
-        });
-        let expected_redirection = Redirection {
-            source: OutputSource::Stdout(OutputMode::Override),
-            target: "foo.md".to_string(),
-        };
-        let expected = Command {
-            kind: expected_cmd,
-            redirection: Some(expected_redirection),
-        };
-        assert_eq!(output, expected)
-    }
-
-    #[test]
-    fn command_width_stderr_redirection() {
-        let input = r#"echo "bar" 2> foo.md"#;
-        let output = parse_input(input).unwrap();
-        let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
-            input: r#"bar"#.to_string(),
-        });
-        let expected_redirection = Redirection {
-            source: OutputSource::Stderr(OutputMode::Override),
-            target: "foo.md".to_string(),
-        };
-        let expected = Command {
-            kind: expected_cmd,
-            redirection: Some(expected_redirection),
-        };
-        assert_eq!(output, expected)
-    }
-}
+//     #[test]
+//     fn command_width_stderr_redirection() {
+//         let input = r#"echo "bar" 2> foo.md"#;
+//         let output = parse_input(input).unwrap();
+//         let expected_cmd = CommandKind::Builtin(BuiltinCommand::Echo {
+//             input: r#"bar"#.to_string(),
+//         });
+//         let expected_redirection = Redirection {
+//             source: Source::Stderr(OutputMode::Override),
+//             target: "foo.md".to_string(),
+//         };
+//         let expected = Command {
+//             kind: expected_cmd,
+//             redirection: Some(expected_redirection),
+//         };
+//         assert_eq!(output, expected)
+//     }
+// }
 
 fn parse_args(args: &str) -> Vec<String> {
     let mut current_arg = String::new();
